@@ -1,0 +1,19 @@
+{
+"type": "FeatureCollection",
+"name": "charging_stations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.160381725229434, 41.383365571194119 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.160170985032993, 41.383209230933645 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.151939031825444, 41.383779831352726 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152064716668294, 41.383682629605268 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152195061398758, 41.383588114160645 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152319537374658, 41.383493555331462 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152449904315763, 41.383397271684757 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.15255055042796, 41.382917728334995 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152427460764727, 41.382825082280732 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152297011875311, 41.382724892943692 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152171437329907, 41.382632228307649 ] } },
+{ "type": "Feature", "properties": { "type": "charging_station", "color": "#F59E0B", "marker_size": 1 }, "geometry": { "type": "Point", "coordinates": [ 2.152052052826241, 41.382541481383434 ] } }
+]
+}

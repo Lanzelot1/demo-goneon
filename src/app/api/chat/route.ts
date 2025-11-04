@@ -1,0 +1,672 @@
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { streamText, convertToModelMessages, stepCountIs } from 'ai';
+import { z } from 'zod';
+
+// Geocode an address using Google Geocoding API
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; formatted_address: string } | null> {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    console.error('Google Maps API key not found');
+    return null;
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      const result = data.results[0];
+      return {
+        lat: result.geometry.location.lat,
+        lng: result.geometry.location.lng,
+        formatted_address: result.formatted_address,
+      };
+    } else {
+      console.error('Geocoding failed:', data.status, data.error_message);
+      return null;
+    }
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+}
+
+// Analyze network GeoJSON data - handles lanes, parking, and EV infrastructure
+async function analyzeNetwork(
+  mapName: string,
+  analysisType: 'lanes' | 'parking' | 'ev_parking' | 'charging_stations' = 'lanes',
+  laneTypeFilter?: string
+) {
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    // Read GeoJSON file from public/data/Maps directory
+    const filePath = path.join(process.cwd(), 'public', 'data', 'Maps', `${mapName}.geojson`);
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const geoJson = JSON.parse(fileContent);
+
+    // Handle different analysis types
+    if (analysisType === 'parking' || analysisType === 'ev_parking') {
+      // Analyze parking spaces
+      const parkingSpaces: any[] = [];
+      const sampleCoords: { lat: number; lng: number }[] = [];
+
+      geoJson.features.forEach((feature: any) => {
+        const props = feature.properties;
+        parkingSpaces.push({
+          id: props.id || props.osm_id,
+          type: analysisType === 'ev_parking' ? 'EV Parking' : 'General Parking',
+          capacity: props.capacity || 1,
+        });
+
+        // Extract sample coordinates
+        if (sampleCoords.length < 10 && feature.geometry.coordinates) {
+          const coords = feature.geometry.type === 'Polygon'
+            ? feature.geometry.coordinates[0][0]
+            : feature.geometry.coordinates[0];
+
+          if (coords && coords.length >= 2) {
+            sampleCoords.push({
+              lng: coords[0],
+              lat: coords[1]
+            });
+          }
+        }
+      });
+
+      const totalCapacity = parkingSpaces.reduce((sum, space) => sum + space.capacity, 0);
+
+      return {
+        analysis_type: analysisType,
+        map_name: mapName,
+        total_spaces: parkingSpaces.length,
+        total_capacity: totalCapacity,
+        sample_locations: sampleCoords,
+        message: analysisType === 'ev_parking'
+          ? `Found ${parkingSpaces.length} EV parking zones with capacity for ${totalCapacity} vehicles`
+          : `Found ${parkingSpaces.length} parking spaces with capacity for ${totalCapacity} vehicles`
+      };
+    }
+
+    if (analysisType === 'charging_stations') {
+      // Analyze charging stations
+      const stations: any[] = [];
+      const sampleCoords: { lat: number; lng: number }[] = [];
+
+      geoJson.features.forEach((feature: any) => {
+        const props = feature.properties;
+        stations.push({
+          id: props.id || props.osm_id,
+          type: 'EV Charging Station',
+          operator: props.operator || 'Unknown',
+        });
+
+        // Extract sample coordinates
+        if (sampleCoords.length < 10 && feature.geometry.coordinates) {
+          const coords = feature.geometry.type === 'Point'
+            ? feature.geometry.coordinates
+            : (feature.geometry.type === 'Polygon'
+                ? feature.geometry.coordinates[0][0]
+                : feature.geometry.coordinates[0]);
+
+          if (coords && coords.length >= 2) {
+            sampleCoords.push({
+              lng: coords[0],
+              lat: coords[1]
+            });
+          }
+        }
+      });
+
+      return {
+        analysis_type: 'charging_stations',
+        map_name: mapName,
+        total_stations: stations.length,
+        sample_locations: sampleCoords,
+        message: `Found ${stations.length} EV charging stations`
+      };
+    }
+
+    // Default: Analyze lanes
+    const laneTypeNames: Record<string, string> = {
+      'M': 'Motor',
+      'L': 'Bicycle',
+      'G': 'Green',
+      'T': 'Transit',
+      'R': 'Parking'
+    };
+
+    // Analyze features
+    const lanesByType: Record<string, any[]> = {};
+    const streetsByType: Record<string, Set<string>> = {};
+    const sampleCoords: Record<string, { lat: number; lng: number }[]> = {};
+
+    geoJson.features.forEach((feature: any) => {
+      const laneType = feature.properties.lane_type_code;
+      const streetId = feature.properties.street_id;
+      const width = feature.properties.width || 3.5;
+
+      // Apply filter if specified
+      if (laneTypeFilter && laneType !== laneTypeFilter) {
+        return;
+      }
+
+      // Count by type
+      if (!lanesByType[laneType]) {
+        lanesByType[laneType] = [];
+        streetsByType[laneType] = new Set();
+        sampleCoords[laneType] = [];
+      }
+
+      lanesByType[laneType].push({ width, streetId });
+      streetsByType[laneType].add(streetId);
+
+      // Extract sample coordinate (centroid approximation)
+      if (sampleCoords[laneType].length < 5 && feature.geometry.coordinates) {
+        const coords = feature.geometry.type === 'Polygon'
+          ? feature.geometry.coordinates[0][0]
+          : feature.geometry.coordinates[0];
+
+        if (coords && coords.length >= 2) {
+          sampleCoords[laneType].push({
+            lng: coords[0],
+            lat: coords[1]
+          });
+        }
+      }
+    });
+
+    // Calculate statistics
+    const statistics: Record<string, any> = {};
+    let totalLanes = 0;
+
+    Object.entries(lanesByType).forEach(([code, lanes]) => {
+      const count = lanes.length;
+      totalLanes += count;
+
+      // Approximate length: sum of widths (rough proxy)
+      const totalWidth = lanes.reduce((sum: number, lane: any) => sum + lane.width, 0);
+      const approxLengthKm = (totalWidth / 1000).toFixed(2);
+
+      statistics[code] = {
+        lane_type: laneTypeNames[code] || code,
+        count: count,
+        unique_streets: streetsByType[code].size,
+        approx_length_km: parseFloat(approxLengthKm),
+        sample_locations: sampleCoords[code]
+      };
+    });
+
+    return {
+      analysis_type: 'lanes',
+      map_name: mapName,
+      total_lanes: totalLanes,
+      lane_statistics: statistics,
+      message: laneTypeFilter
+        ? `Found ${lanesByType[laneTypeFilter]?.length || 0} ${laneTypeNames[laneTypeFilter] || laneTypeFilter} lanes`
+        : `Analyzed ${totalLanes} total lanes across ${Object.keys(lanesByType).length} types`
+    };
+  } catch (error) {
+    console.error('Network analysis error:', error);
+    return {
+      error: 'Failed to analyze network',
+      message: String(error)
+    };
+  }
+}
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  // Convert UIMessages to ModelMessages for the AI SDK
+  const modelMessages = convertToModelMessages(messages);
+
+  const result = streamText({
+    model: anthropic('claude-sonnet-4-20250514'),
+    messages: modelMessages,
+    stopWhen: stepCountIs(5),
+    tools: {
+      reset_network: {
+        description: 'Reset the street network to its initial state with all motor vehicle lanes. Use this to undo transformations and return to the baseline configuration.',
+        inputSchema: z.object({}),
+        execute: async () => {
+          // Simulate processing
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+
+          return {
+            status: 'success',
+            action: 'reset',
+            map: 'initial_network',
+            total_lanes: 3030,
+            lane_types: { motor: 3030, bicycle: 0, green: 0 },
+            message: 'Network reset to initial state.',
+          };
+        },
+      },
+      transform_network: {
+        description: 'Transform the street network to create superblocks, cycling corridors, or other sustainable configurations. This reallocates road space for bicycles, pedestrians, and green areas.',
+        inputSchema: z.object({
+          transformation_type: z.enum(['cycling_corridor', 'all_superblocks'])
+            .describe('Type of transformation: cycling_corridor (MESO: main cycling route), or all_superblocks (MACRO: comprehensive city-wide transformation)'),
+        }),
+        execute: async ({ transformation_type }) => {
+          // Simulate processing time
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+
+          // Map transformation type to result
+          const transformations = {
+            cycling_corridor: {
+              map: 'cycling_corridor',
+              lane_types: { motor: 2940, bicycle: 74, green: 43 },
+              message: 'Success! I\'ve added a cycling corridor with 74 bicycle lanes and 43 green spaces. Ready to explore the changes?',
+            },
+            all_superblocks: {
+              map: 'all_superblocks',
+              lane_types: { motor: 2802, bicycle: 152, green: 183 },
+              message: 'Done! Your network now has 152 bicycle lanes and 183 green spaces across the city. Ready to explore?',
+            },
+          };
+
+          const result = transformations[transformation_type];
+
+          return {
+            status: 'success',
+            action: 'transform',
+            transformation_type,
+            ...result,
+            total_lanes: 3030 + (result.lane_types.bicycle || 0) + (result.lane_types.green || 0),
+          };
+        },
+      },
+      jump_to_location: {
+        description: 'Jump to a specific location within the Central Barcelona coverage area. Accepts addresses, predefined locations, or coordinates. Use the address parameter for any street address or landmark.',
+        inputSchema: z.object({
+          address: z.string().optional()
+            .describe('Street address or landmark to navigate to (e.g., "Passeig de Gràcia, 92" or "Casa Batlló"). Will be geocoded to precise coordinates.'),
+          location: z.enum([
+            'barcelona_center',
+            'sagrada_familia',
+            'gothic_quarter',
+            'eixample',
+          ]).optional()
+            .describe('Predefined location within Central Barcelona coverage area'),
+          custom_lat: z.number().optional()
+            .describe('Custom latitude coordinate (must be within 41.375° to 41.412°)'),
+          custom_lng: z.number().optional()
+            .describe('Custom longitude coordinate (must be within 2.142° to 2.187°)'),
+        }),
+        execute: async ({ address, location, custom_lat, custom_lng }) => {
+          // Predefined locations within Central Barcelona coverage area
+          const locations = {
+            barcelona_center: {
+              name: 'Barcelona City Center (Plaça Catalunya)',
+              lat: 41.3851,
+              lng: 2.1734,
+              range: 500,
+              heading: 0,
+              tilt: 30,
+            },
+            sagrada_familia: {
+              name: 'Sagrada Familia',
+              lat: 41.4036,
+              lng: 2.1744,
+              range: 600,
+              heading: 45,
+              tilt: 30,
+            },
+            gothic_quarter: {
+              name: 'Gothic Quarter',
+              lat: 41.3825,
+              lng: 2.1769,
+              range: 400,
+              heading: 315,
+              tilt: 30,
+            },
+            eixample: {
+              name: 'Eixample District',
+              lat: 41.3935,
+              lng: 2.1644,
+              range: 800,
+              heading: 25,
+              tilt: 30,
+            },
+          };
+
+          // Priority 1: Use address geocoding if provided
+          if (address) {
+            const geocoded = await geocodeAddress(address);
+
+            if (geocoded) {
+              // Check if coordinates are within coverage area
+              const inBounds = (
+                geocoded.lat >= 41.375 && geocoded.lat <= 41.412 &&
+                geocoded.lng >= 2.142 && geocoded.lng <= 2.187
+              );
+
+              return {
+                status: 'success',
+                action: 'jump_to_location',
+                location_name: geocoded.formatted_address,
+                in_coverage: inBounds,
+                camera: {
+                  lat: geocoded.lat,
+                  lng: geocoded.lng,
+                  range: 400,  // Closer zoom for specific addresses
+                  heading: 0,
+                  tilt: 30,
+                  roll: 0,
+                },
+                message: inBounds
+                  ? `Navigating to ${geocoded.formatted_address}...`
+                  : `Jumping to ${geocoded.formatted_address} (outside network coverage - street overlay will not be visible)`,
+              };
+            } else {
+              // Geocoding failed
+              return {
+                status: 'error',
+                action: 'jump_to_location',
+                message: `Could not geocode address "${address}". Please try a different address or use a predefined location.`,
+              };
+            }
+          }
+
+          // Priority 2: Use custom coordinates if provided
+          if (custom_lat && custom_lng) {
+            // Check if coordinates are within coverage area
+            const inBounds = (
+              custom_lat >= 41.375 && custom_lat <= 41.412 &&
+              custom_lng >= 2.142 && custom_lng <= 2.187
+            );
+
+            return {
+              status: 'success',
+              action: 'jump_to_location',
+              location_name: 'Custom Location',
+              in_coverage: inBounds,
+              camera: {
+                lat: custom_lat,
+                lng: custom_lng,
+                range: 800,
+                heading: 0,
+                tilt: 30,
+                roll: 0,
+              },
+              message: inBounds
+                ? `Jumping to custom coordinates: ${custom_lat.toFixed(4)}, ${custom_lng.toFixed(4)}`
+                : `Jumping to ${custom_lat.toFixed(4)}, ${custom_lng.toFixed(4)} (outside network coverage - street overlay will not be visible)`,
+            };
+          } else if (location && locations[location]) {
+            const loc = locations[location];
+            return {
+              status: 'success',
+              action: 'jump_to_location',
+              location_name: loc.name,
+              in_coverage: true,
+              camera: {
+                lat: loc.lat,
+                lng: loc.lng,
+                range: loc.range,
+                heading: loc.heading,
+                tilt: loc.tilt,
+                roll: 0,
+              },
+              message: `Navigating to ${loc.name}...`,
+            };
+          }
+
+          // Default to Eixample center if nothing specified
+          return {
+            status: 'success',
+            action: 'jump_to_location',
+            location_name: 'Eixample District',
+            in_coverage: true,
+            camera: {
+              lat: 41.3935,
+              lng: 2.1644,
+              range: 800,
+              heading: 25,
+              tilt: 30,
+              roll: 0,
+            },
+            message: 'Returning to Eixample District center (default view).',
+          };
+        },
+      },
+      analyze_network: {
+        description: 'Analyze the street network, parking infrastructure, and EV facilities to get real statistics and locations. Use this to answer questions about bicycle lanes, green spaces, parking availability, EV charging stations, etc.',
+        inputSchema: z.object({
+          analysis_type: z.enum(['lanes', 'parking', 'ev_parking', 'charging_stations']).optional()
+            .describe('Type of analysis: lanes (default - street lanes), parking (general parking), ev_parking (EV parking zones), charging_stations (EV charging points)'),
+          map_name: z.string().optional()
+            .describe('Name of the data to analyze. For lanes: "cycling_corridor", "initial_network", "all_superblocks". For parking/EV: "onstreet_parking", "onstreet_parking_EV", "charging_stations". Defaults based on analysis_type.'),
+          lane_type_filter: z.enum(['M', 'L', 'G', 'T', 'R']).optional()
+            .describe('For lane analysis only - filter by type: M=Motor, L=Bicycle, G=Green spaces, T=Transit, R=Parking'),
+        }),
+        execute: async ({ analysis_type, map_name, lane_type_filter }) => {
+          // Set defaults based on analysis type
+          const analysisTypeValue = analysis_type || 'lanes';
+          let mapNameValue = map_name;
+
+          // Auto-select appropriate map if not specified
+          if (!mapNameValue) {
+            switch (analysisTypeValue) {
+              case 'parking':
+                mapNameValue = 'onstreet_parking';
+                break;
+              case 'ev_parking':
+                mapNameValue = 'onstreet_parking_EV';
+                break;
+              case 'charging_stations':
+                mapNameValue = 'charging_stations';
+                break;
+              default:
+                mapNameValue = 'initial_network';
+            }
+          }
+
+          // Analyze the network/infrastructure
+          const analysis = await analyzeNetwork(mapNameValue, analysisTypeValue, lane_type_filter);
+
+          return {
+            status: 'success',
+            action: 'analyze_network',
+            ...analysis,
+          };
+        },
+      },
+      micro_transformation: {
+        description: 'Apply MICRO level transformations to add EV parking and charging infrastructure. This keeps the base network unchanged but adds overlay layers for electric vehicle parking zones and charging stations.',
+        inputSchema: z.object({
+          transformation_type: z.enum(['add_ev_parking', 'add_charging_stations', 'full_ev_infrastructure'])
+            .describe('Type of micro transformation: add_ev_parking (EV parking zones only), add_charging_stations (charging points only), or full_ev_infrastructure (both EV parking and charging stations)'),
+        }),
+        execute: async ({ transformation_type }) => {
+          // Simulate processing time
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+
+          // Map transformation type to overlay configuration
+          const transformations = {
+            add_ev_parking: {
+              mapState: {
+                baseNetwork: 'initial_network',
+                overlays: ['onstreet_parking_EV'],
+              },
+              features_added: { ev_parking_zones: 20 },
+              message: 'EV parking added: 20 zones.',
+            },
+            add_charging_stations: {
+              mapState: {
+                baseNetwork: 'initial_network',
+                overlays: ['charging_stations'],
+              },
+              features_added: { charging_stations: 12 },
+              message: 'EV charging added: 12 stations.',
+            },
+            full_ev_infrastructure: {
+              mapState: {
+                baseNetwork: 'initial_network',
+                overlays: ['onstreet_parking_EV', 'charging_stations'],
+              },
+              features_added: { ev_parking_zones: 20, charging_stations: 12 },
+              message: 'EV infrastructure added: 20 parking zones, 12 charging stations.',
+            },
+          };
+
+          const result = transformations[transformation_type];
+
+          return {
+            status: 'success',
+            action: 'micro_transformation',
+            transformation_type,
+            ...result,
+          };
+        },
+      },
+      suggest_beta_booking: {
+        description: 'Suggest the user to book a beta demo call with goNEON to explore more features and get personalized assistance. Use this after the user has made 4+ prompts to encourage them to learn more about the full platform.',
+        inputSchema: z.object({
+          message: z.string().optional()
+            .describe('Optional custom message to accompany the booking suggestion'),
+        }),
+        execute: async ({ message }) => {
+          return {
+            status: 'success',
+            action: 'suggest_beta_booking',
+            redirect_url: 'https://goneon.city/after_prompting',
+            message: message || 'Great exploration! Ready to see what goNEON can do for your city? Book a beta demo call with our team.',
+          };
+        },
+      },
+    },
+    system: `You are N!, goNEON's AI agent for urban planning and street network transformation.
+
+**Your Mission**: Help planners complete complex urban planning tasks in **weeks instead of years** through intelligent prompting and automated workflows.
+
+**Your Capabilities Across Three Planning Levels**:
+
+🌆 **MACRO Level** - City-Wide Mobility Concepts
+- Comprehensive network transformations (superblocks, 15-minute cities)
+- Strategic mobility planning across entire districts
+- Long-term urban development scenarios
+
+🛣️ **MESO Level** - Corridor Studies
+- Major route planning and optimization
+- Cycling and transit corridor design
+- Street-by-street network analysis
+
+🏘️ **MICRO Level** - Street Space Details
+- Parking space allocation
+- EV charging station placement
+- Detailed lane-level modifications
+- Intersection-specific improvements
+
+🌍 **Geographic Coverage Area**
+- Current network data covers: Central Barcelona, Spain
+- Coverage area: ~4.1 km × 3.5 km (~14 km²)
+- Latitude boundaries: 41.375° to 41.412° N
+- Longitude boundaries: 2.142° to 2.187° E
+- Covered landmarks: Barcelona City Center (Plaça Catalunya), Sagrada Familia, Gothic Quarter, Eixample district
+- **IMPORTANT**: Street network overlay is ONLY visible within these boundaries. Locations outside this area (like Park Güell, Camp Nou, or beaches) will show Google's 3D buildings but no street network data
+
+🛠️ **goNEON Core Capabilities**
+- Network creation from geographic regions
+- Lane initialization with configurable parameters (typically 4 lanes per street)
+- Street property modification (priority levels, lane counts, etc.)
+- Statistics calculation (street count, lane kilometers, capacity analysis)
+- Lane type distribution: Motor (70%), Transit (15%), Bicycle (10%), Green (5%)
+
+📊 **Current Network Statistics (Central Barcelona)**
+The loaded network data contains:
+- Total lanes: 3,030 lanes
+- Coverage area: ~4.1 km × 3.5 km in Central Barcelona
+- Lane types: Motor vehicle lanes (can be transformed to bicycle lanes, green spaces, etc.)
+- Available transformations: Single superblock, cycling corridor, or comprehensive superblock network
+- The network is based on real street data from the central Barcelona area
+
+💬 **Communication Style**
+- Keep responses to 2-3 sentences maximum
+- Be warm, engaging, and conversational
+- Use 1-2 relevant emojis sparingly when they add warmth (e.g., 🚴, 🌳, 📍, ✨)
+- Provide helpful context and insights when users ask questions
+- Balance being informative with staying concise
+- Celebrate successes and invite exploration
+
+🎯 **What You Can Do**
+- **Transform entire networks** (Macro): Superblocks, 15-minute city concepts, district-wide changes
+- **Design corridors** (Meso): Cycling routes, transit corridors, major street redesigns
+- **Optimize details** (Micro): Navigate locations, adjust individual streets, place infrastructure
+- **Analyze impact**: Provide statistics on lane distribution, capacity, and accessibility
+
+🔧 **Available Tools**
+You have access to several tools:
+- 'reset_network' - Reset the street network to its initial state with 3,030 motor vehicle lanes
+- 'transform_network' - Transform the network with superblocks or cycling corridors (MACRO/MESO level):
+  * Use 'all_superblocks' for MACRO level: comprehensive city-wide superblock transformation
+  * Use 'cycling_corridor' for MESO level: focused cycling route corridor design
+- 'micro_transformation' - Apply MICRO level transformations for EV infrastructure (add_ev_parking, add_charging_stations, or full_ev_infrastructure):
+  * Adds overlay layers on top of the base network without changing the underlying street structure
+  * EV parking: Adds dedicated on-street parking zones for electric vehicles
+  * Charging stations: Adds public EV charging infrastructure points
+  * Full EV infrastructure: Combines both EV parking and charging stations
+  * Use this for street-level details like parking and charging infrastructure placement
+- 'jump_to_location' - Navigate to any address or location in Barcelona:
+  * Use the 'address' parameter for any street address or landmark (e.g., "Passeig de Gràcia, 92" or "Casa Batlló")
+  * Addresses are geocoded to precise coordinates using Google's geocoding service
+  * Can also use predefined locations: Barcelona City Center (Plaça Catalunya), Sagrada Familia, Gothic Quarter, or Eixample district
+  * DO NOT try to extract coordinates from user messages - just pass the address as-is to the tool
+  * **IMPORTANT**: When you've run analyze_network and received sample_locations in the result, USE those coordinates!
+    - Extract the first coordinate from sample_locations array (e.g., sample_locations[0])
+    - Use custom_lat and custom_lng parameters to jump to that exact location
+    - Example: If analyze returns sample_locations: [{lng: 2.160, lat: 41.385}], use jump_to_location with custom_lng: 2.160, custom_lat: 41.385
+    - This shows users EXACTLY where the analyzed features are located, not a generic city center
+- 'analyze_network' - Analyze street networks, parking, and EV infrastructure to get REAL data and statistics:
+  * Can analyze multiple types: 'lanes' (street network), 'parking' (general parking), 'ev_parking' (EV parking zones), 'charging_stations' (EV charging points)
+  * For lanes: Query any network map (initial_network, cycling_corridor, all_superblocks) and filter by lane type (M=Motor, L=Bicycle, G=Green spaces, T=Transit, R=Parking)
+  * For parking/EV: Analyzes onstreet_parking, onstreet_parking_EV, or charging_stations data files
+  * Returns: counts, capacities, locations with sample GPS coordinates
+  * ALWAYS use this tool when asked about:
+    - Street network: "where are the bicycle lanes", "how many green spaces", "total length"
+    - Parking: "how many parking spaces", "where is parking available"
+    - EV infrastructure: "where are EV charging stations", "how many EV parking zones", "EV capacity"
+  * The tool reads actual GeoJSON data, so all statistics are real and accurate
+  * **When users ask "where are the changes?" or "show me the location":**
+    1. First, run analyze_network to get sample_locations with real GPS coordinates
+    2. Extract the first coordinate from the sample_locations array
+    3. Immediately run jump_to_location with custom_lat and custom_lng from that coordinate
+    4. This navigates users to EXACTLY where the analyzed features are located (not a generic predefined location)
+
+**Important**: When users ask to visit locations outside the coverage area (like Park Güell, Camp Nou, beaches, or Sant Adrià), politely inform them that this demo focuses on Central Barcelona where the street network data is available. Suggest they explore locations within the coverage area instead to see the full street network visualization capabilities.
+
+**Important Tool Execution**:
+
+**BEFORE Executing Any Tool**:
+- First, briefly explain what you're about to do (1 sentence)
+- Build anticipation and show your thinking process
+- Make it engaging and enthusiastic
+- Example: "Perfect! I'll create a cycling corridor through Central Barcelona 🚴 adding bicycle lanes and green spaces. Let me transform the network..."
+- THEN execute the tool immediately
+
+**AFTER Tool Execution**:
+- Celebrate the success with warmth and personality (2-3 sentences max)
+- Include 1-2 relevant emojis when appropriate
+- Acknowledge the accomplishment and invite exploration
+- Example: "Success! I've added a cycling corridor with 74 bicycle lanes and 43 green spaces 🌳 Ready to explore the changes?"
+
+**When Answering Follow-Up Questions**:
+- Be helpful and provide context while staying concise
+- Use relevant emojis sparingly to add warmth
+- Example: "The transformation converted 117 motor lanes into sustainable infrastructure - 74 for cycling and 43 green spaces 🚴🌳 A significant shift toward people-first streets!"
+
+Always provide helpful, accurate information about street network planning, traffic engineering, and the goNEON platform capabilities.`,
+    maxTokens: 220,
+    temperature: 0.7,
+  });
+
+  return result.toUIMessageStreamResponse({
+    originalMessages: messages,
+  });
+}
