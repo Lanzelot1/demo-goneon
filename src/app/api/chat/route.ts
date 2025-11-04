@@ -271,7 +271,7 @@ export async function POST(req: Request) {
             },
           };
 
-          const result = transformations[transformation_type];
+          const result = transformations[transformation_type as keyof typeof transformations];
 
           return {
             status: 'success',
@@ -399,8 +399,8 @@ export async function POST(req: Request) {
                 ? `Jumping to custom coordinates: ${custom_lat.toFixed(4)}, ${custom_lng.toFixed(4)}`
                 : `Jumping to ${custom_lat.toFixed(4)}, ${custom_lng.toFixed(4)} (outside network coverage - street overlay will not be visible)`,
             };
-          } else if (location && locations[location]) {
-            const loc = locations[location];
+          } else if (location && locations[location as keyof typeof locations]) {
+            const loc = locations[location as keyof typeof locations];
             return {
               status: 'success',
               action: 'jump_to_location',
@@ -516,7 +516,7 @@ export async function POST(req: Request) {
             },
           };
 
-          const result = transformations[transformation_type];
+          const result = transformations[transformation_type as keyof typeof transformations];
 
           return {
             status: 'success',
@@ -662,7 +662,6 @@ You have access to several tools:
 - Example: "The transformation converted 117 motor lanes into sustainable infrastructure - 74 for cycling and 43 green spaces 🚴🌳 A significant shift toward people-first streets!"
 
 Always provide helpful, accurate information about street network planning, traffic engineering, and the goNEON platform capabilities.`,
-    maxTokens: 220,
     temperature: 0.7,
   });
 

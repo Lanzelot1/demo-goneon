@@ -30,7 +30,8 @@ import {
 } from "@/components/ai-elements/tool";
 import { useChat } from "@ai-sdk/react";
 import { useState, useEffect, useRef } from "react";
-import type { ToolUIPart } from "ai";
+import type { ToolUIPart, UIMessage } from "ai";
+import { DefaultChatTransport } from "ai";
 
 // Extract network statistics from AI responses
 function extractNetworkStats(content: string | undefined) {
@@ -69,7 +70,7 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
-  const [pendingMessage, setPendingMessage] = useState<{ id: string; role: string; content: string } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<UIMessage | null>(null);
   const processedToolOutputs = useRef<Set<string>>(new Set());
   const [promptCount, setPromptCount] = useState(0);
   const [promptLimit, setPromptLimit] = useState(5);
@@ -119,20 +120,35 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const { messages, sendMessage, isLoading, error } = useChat({
-    api: '/api/chat',
-    initialMessages: [
-      {
-        id: '1',
-        role: 'assistant',
-        content: '👋 I\'m **N!**, goNEON\'s AI agent. I help you complete urban planning tasks in **weeks instead of years**.\n\nI work across three levels:\n• **Macro**: City-wide mobility concepts\n• **Meso**: Corridor studies and route planning\n• **Micro**: Street space details (parking, charging stations)\n\nTry the suggestions below or ask me anything!',
-      }
-    ],
+  const { messages, sendMessage, status, error, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+    }),
+    id: 'goneon-chat',
   });
+
+  // Add initial welcome message on mount
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([
+        {
+          id: '1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              text: '👋 I\'m **N!**, goNEON\'s AI agent. I help you complete urban planning tasks in **weeks instead of years**.\n\nI work across three levels:\n• **Macro**: City-wide mobility concepts\n• **Meso**: Corridor studies and route planning\n• **Micro**: Street space details (parking, charging stations)\n\nTry the suggestions below or ask me anything!',
+            }
+          ],
+        }
+      ]);
+    }
+  }, []);
 
   const handleSubmit = (message: PromptInputMessage, event: any) => {
     event.preventDefault();
     const hasText = Boolean(message.text?.trim());
+    const isLoading = status === 'streaming' || status === 'submitted';
     if (!hasText || isLoading) return;
 
     // Check if limit is reached (if beta booking is enabled)
@@ -144,11 +160,11 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
     setPendingMessage({
       id: `pending-${Date.now()}`,
       role: 'user',
-      content: message.text || ''
+      parts: [{ type: 'text', text: message.text || '' }]
     });
 
     // Send message using the AI SDK v5 pattern (ONCE, outside setState)
-    sendMessage({ text: message.text });
+    sendMessage({ text: message.text || '' });
 
     // Clear input
     setInput('');
@@ -161,7 +177,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
 
   // Clear pending message when actual message arrives
   useEffect(() => {
-    if (messages.some(m => m.role === 'user') && pendingMessage) {
+    if (messages.length > 1 && pendingMessage) {
       setPendingMessage(null);
     }
   }, [messages, pendingMessage]);
@@ -169,8 +185,9 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
   // Process tool outputs for map and camera updates (once per tool output)
   useEffect(() => {
     messages.forEach((message) => {
-      const toolParts = message.parts?.filter(
-        (part) => part.type.startsWith('tool-')
+      const allParts = message.parts as Array<any>;
+      const toolParts = allParts?.filter(
+        (part) => part.type?.startsWith('tool-')
       ) as ToolUIPart[] | undefined;
 
       toolParts?.forEach((toolPart) => {
@@ -239,10 +256,8 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
               <>
                 {messages.map((message) => {
                 // Extract all text content for stats calculation
-                const allTextContent = message.parts
-                  ?.filter(part => part.type === 'text')
-                  .map(part => part.text)
-                  .join('');
+                const textParts = message.parts?.filter((part: any) => part.type === 'text') as Array<{ type: 'text'; text: string }> | undefined;
+                const allTextContent = textParts?.map(part => part.text).join('');
 
                 const stats = extractNetworkStats(allTextContent);
 
@@ -250,14 +265,14 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
                   <Message from={message.role} key={message.id}>
                     <MessageContent className="text-base leading-relaxed">
                       {/* Render parts in their original order */}
-                      {message.parts?.map((part, idx) => {
+                      {message.parts?.map((part: any, idx) => {
                         // Handle text parts
                         if (part.type === 'text') {
                           return <Response key={idx}>{part.text}</Response>;
                         }
 
                         // Handle tool parts (tool-call, tool-result, etc.)
-                        if (part.type.startsWith('tool-')) {
+                        if (part.type?.startsWith('tool-')) {
                           const toolPart = part as ToolUIPart;
                           return (
                             <div key={idx} className="my-3">
@@ -311,9 +326,9 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
               })}
                 {/* Render pending message immediately */}
                 {pendingMessage && (
-                  <Message from={pendingMessage.role as 'user' | 'assistant'} key={pendingMessage.id}>
+                  <Message from={pendingMessage.role} key={pendingMessage.id}>
                     <MessageContent className="text-base leading-relaxed">
-                      <Response>{pendingMessage.content}</Response>
+                      <Response>{(pendingMessage.parts[0] as any)?.text}</Response>
                     </MessageContent>
                   </Message>
                 )}
@@ -436,8 +451,8 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
                   {/* Empty for now, but can add action buttons here later */}
                 </PromptInputTools>
                 <PromptInputSubmit
-                  status={isLoading ? 'streaming' : 'ready'}
-                  disabled={!input?.trim() || isLoading}
+                  status={status === 'streaming' || status === 'submitted' ? 'streaming' : 'ready'}
+                  disabled={!input?.trim() || status === 'streaming' || status === 'submitted'}
                   className="bg-primary hover:bg-primary/90 text-white h-10 w-10"
                 />
               </PromptInputFooter>

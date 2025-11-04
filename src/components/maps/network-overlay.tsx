@@ -111,7 +111,7 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
           const outerRing = lane.geometry.coordinates[0];
 
           // Convert GeoJSON coordinates [lng, lat] to {lat, lng}
-          const path = outerRing.map(([lng, lat]) => ({
+          const path = outerRing.map(([lng, lat]: [number, number]) => ({
             lat,
             lng,
             altitude: 0,
@@ -138,7 +138,7 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
           const coords = lane.geometry.coordinates;
 
           // Convert GeoJSON coordinates [lng, lat] to {lat, lng}
-          const path = coords.map(([lng, lat]) => ({
+          const path = coords.map(([lng, lat]: [number, number]) => ({
             lat,
             lng,
             altitude: 0,

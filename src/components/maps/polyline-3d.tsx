@@ -52,7 +52,7 @@ export function Polyline3D({
       polyline.setAttribute('draws-occluded-segments', 'true'); // Show through buildings
 
       // Use 'path' instead of deprecated 'coordinates'
-      polyline.path = coordinates.map(coord => ({
+      (polyline as any).path = coordinates.map(coord => ({
         lat: coord.lat,
         lng: coord.lng,
         altitude: coord.altitude || 0,
