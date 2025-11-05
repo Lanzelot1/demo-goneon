@@ -183,7 +183,7 @@ export const Particles: React.FC<ParticlesProps> = ({
     const translateY = 0
     const pSize = Math.floor(Math.random() * 2) + size
     const alpha = 0
-    const targetAlpha = parseFloat((Math.random() * 0.6 + 0.1).toFixed(1))
+    const targetAlpha = parseFloat((Math.random() * 0.5 + 0.4).toFixed(1)) // Increased from 0.1-0.7 to 0.4-0.9
     const dx = (Math.random() - 0.5) * 0.1
     const dy = (Math.random() - 0.5) * 0.1
     const magnetism = 0.1 + Math.random() * 4
@@ -262,6 +262,16 @@ export const Particles: React.FC<ParticlesProps> = ({
         canvasSize.current.h - circle.y - circle.translateY - circle.size, // distance from bottom edge
       ]
       const closestEdge = edge.reduce((a, b) => Math.min(a, b))
+
+      // Fade out distance (start fading when within 100px of edge)
+      const fadeDistance = 100
+
+      // Calculate fade-out factor based on distance from edge
+      let fadeFactor = 1
+      if (closestEdge < fadeDistance) {
+        fadeFactor = closestEdge / fadeDistance
+      }
+
       const remapClosestEdge = parseFloat(
         remapValue(closestEdge, 0, 20, 0, 1).toFixed(2)
       )
@@ -273,6 +283,10 @@ export const Particles: React.FC<ParticlesProps> = ({
       } else {
         circle.alpha = circle.targetAlpha * remapClosestEdge
       }
+
+      // Apply fade-out effect when approaching edge
+      circle.alpha = circle.alpha * fadeFactor
+
       circle.x += circle.dx + vx
       circle.y += circle.dy + vy
       circle.translateX +=
@@ -284,12 +298,13 @@ export const Particles: React.FC<ParticlesProps> = ({
 
       drawCircle(circle, true)
 
-      // circle gets out of the canvas
+      // circle gets out of the canvas - only remove after fully faded
       if (
-        circle.x < -circle.size ||
+        circle.alpha < 0.01 &&
+        (circle.x < -circle.size ||
         circle.x > canvasSize.current.w + circle.size ||
         circle.y < -circle.size ||
-        circle.y > canvasSize.current.h + circle.size
+        circle.y > canvasSize.current.h + circle.size)
       ) {
         // remove the circle from the array
         circles.current.splice(i, 1)
