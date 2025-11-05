@@ -137,7 +137,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
           parts: [
             {
               type: 'text',
-              text: '👋 I\'m **N!**, goNEON\'s AI agent. I help you complete urban planning tasks in **weeks instead of years**.\n\nI work across three levels:\n\n• **Macro**: City-wide mobility concepts\n\n• **Meso**: Corridor studies and route planning\n\n• **Micro**: Street space details (parking, charging stations)\n\nTry the suggestions below or ask me anything!',
+              text: '👋 I\'m **N!**, goNEON\'s AI agent. I help you complete urban planning tasks in **weeks instead of years**.\n\nI work across three levels:\n\n- **Macro**: City-wide mobility concepts\n- **Meso**: Corridor studies and route planning\n- **Micro**: Street space details (parking, charging stations)\n\nTry the suggestions below or ask me anything!',
             }
           ],
         }
