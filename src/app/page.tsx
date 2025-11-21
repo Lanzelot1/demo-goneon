@@ -12,8 +12,8 @@ export interface MapState {
 
 export default function Home() {
   const [mapState, setMapState] = useState<MapState>({
-    baseNetwork: "initial_network",
-    overlays: ["onstreet_parking"] // Show parking from start (MICRO initial state)
+    baseNetwork: "zürich/curbs",
+    overlays: ["zürich/parking_spots", "zürich/remaining_roadway_width"]
   });
   const updateCameraRef = useRef<((props: any) => void) | null>(null);
 

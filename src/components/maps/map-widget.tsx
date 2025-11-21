@@ -140,7 +140,7 @@ export function MapWidget({ mapState, onCameraReady }: MapWidgetProps) {
         {/* Map Info Badge */}
         <div className="absolute bottom-6 left-6">
           <Badge variant="outline" className="bg-black/80 border-white/20 text-white text-lg px-4 py-2">
-            Central Barcelona • City Center
+            Zürich
           </Badge>
         </div>
       </div>

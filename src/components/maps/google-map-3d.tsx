@@ -37,17 +37,17 @@ interface LaneGeoJSON {
   features: LaneFeature[];
 }
 
-// Central Barcelona - parking location view
-const CENTRAL_BARCELONA = {
-  lat: 41.38339823832398,
-  lng: 2.152426376280906,
+// Central Zürich - parking location view
+const CENTRAL_ZURICH = {
+  lat: 47.38,
+  lng: 8.54,
   altitude: 0
 };
 
 // Initial camera position for photorealistic 3D view
 const INITIAL_CAMERA_PROPS: Map3DCameraProps = {
-  center: CENTRAL_BARCELONA,
-  range: 500, // Distance from the ground in meters - closer view for better detail
+  center: CENTRAL_ZURICH,
+  range: 1200, // Distance from the ground in meters - city overview
   heading: 25, // Slight rotation for better building visibility
   tilt: 30, // More top-down view (reduced from 65 for better street visibility)
   roll: 0
@@ -78,7 +78,15 @@ export function GoogleMap3D({
     })
       .then(res => res.json())
       .then((data: LaneGeoJSON) => {
-        setLanes(data.features);
+        // Add color to base network features (curbs should be white/gray)
+        const featuresWithColor = data.features.map(feature => ({
+          ...feature,
+          properties: {
+            ...feature.properties,
+            color: feature.properties.color || (mapState.baseNetwork.includes('curbs') ? '#DDDDDD' : undefined)
+          }
+        }));
+        setLanes(featuresWithColor);
         console.log(`Loaded ${data.features.length} lanes from base network: ${mapState.baseNetwork}`);
 
         // Log sample coordinates to verify location
@@ -86,7 +94,7 @@ export function GoogleMap3D({
           const firstLane = data.features[0];
           const coords = firstLane.geometry.coordinates;
           console.log('Sample lane coordinates:', coords[0]);
-          console.log('Camera center:', CENTRAL_BARCELONA);
+          console.log('Camera center:', CENTRAL_ZURICH);
         }
       })
       .catch(err => {
@@ -102,7 +110,7 @@ export function GoogleMap3D({
 
       for (const overlayName of mapState.overlays) {
         try {
-          const response = await fetch(`/data/Maps/${overlayName}.geojson?t=` + Date.now(), {
+          const response = await fetch(`/data/${overlayName}.geojson?t=` + Date.now(), {
             cache: 'no-store',
             headers: {
               'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -110,7 +118,21 @@ export function GoogleMap3D({
             }
           });
           const data: LaneGeoJSON = await response.json();
-          newOverlays[overlayName] = data.features;
+
+          // Add color to overlay features based on overlay type
+          const overlayColor = overlayName.includes('parking_spots') ? '#00F0FF'  // Cyan for parking
+                             : overlayName.includes('remaining_roadway') ? '#FFA500'  // Orange for roadway width
+                             : undefined;
+
+          const featuresWithColor = data.features.map(feature => ({
+            ...feature,
+            properties: {
+              ...feature.properties,
+              color: feature.properties.color || overlayColor
+            }
+          }));
+
+          newOverlays[overlayName] = featuresWithColor;
           console.log(`Loaded ${data.features.length} features from overlay: ${overlayName}`);
         } catch (err) {
           console.error(`Failed to load overlay ${overlayName}:`, err);
@@ -198,7 +220,7 @@ export function GoogleMap3D({
           <div className="text-center">
             <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
             <p className="text-sm text-gray-300">Loading Photorealistic 3D Map...</p>
-            <p className="text-xs text-gray-400 mt-1">Central Barcelona</p>
+            <p className="text-xs text-gray-400 mt-1">Zürich</p>
           </div>
         </div>
       )}

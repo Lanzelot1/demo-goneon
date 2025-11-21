@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     // Parse URL to get query parameters
     const { searchParams } = new URL(request.url);
     const dataType = searchParams.get('type') || 'lanes';
-    const mapName = searchParams.get('map') || 'initial_network';
+    const mapName = searchParams.get('map') || 'zürich/curbs';
 
     // Map selection for different transformation states
     const mapFiles: Record<string, string> = {
@@ -15,12 +15,16 @@ export async function GET(request: Request) {
       'one_superblock': 'Maps/one_superblock.geojson',
       'cycling_corridor': 'Maps/cycling_corridor.geojson',
       'all_superblocks': 'Maps/all_superblocks.geojson',
+      // Zürich data files
+      'zürich/curbs': 'zürich/curbs.geojson',
+      'zürich/parking_spots': 'zürich/parking_spots.geojson',
+      'zürich/remaining_roadway_width': 'zürich/remaining_roadway_width.geojson',
     };
 
     // Define the file path
     const filename = dataType === 'streets'
       ? 'streets.geojson'
-      : (mapFiles[mapName] || mapFiles['initial_network']);
+      : (mapFiles[mapName] || mapFiles['zürich/curbs']);
     const filePath = path.join(process.cwd(), 'public', 'data', filename);
 
     // Read the GeoJSON file

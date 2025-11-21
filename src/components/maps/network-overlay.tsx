@@ -35,6 +35,13 @@ const LANE_COLORS: Record<string, string> = {
   'R': '#00F0FF',  // Parking - Neon Cyan Blue
 };
 
+// Object type color mapping for Zürich data
+const OBJECT_TYPE_COLORS: Record<string, string> = {
+  'parking_spot': '#00F0FF',  // Neon Cyan - highly visible parking
+  'curb': '#FFFFFF',          // White - street edges
+  'roadway': '#FFA500',       // Orange - remaining road width
+};
+
 export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
   const polylinesRef = useRef<HTMLElement[]>([]);
   const maps3dLibrary = useMapsLibrary('maps3d');
@@ -57,8 +64,9 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
       lanes.forEach((lane, index) => {
         const geometryType = lane.geometry.type;
 
-        // Get color - prioritize: feature color > lane type code > default
+        // Get color - prioritize: feature color > object type > lane type code > default
         const color = lane.properties.color ||
+                      (lane.properties.object_type && OBJECT_TYPE_COLORS[lane.properties.object_type]) ||
                       (lane.properties.lane_type_code && LANE_COLORS[lane.properties.lane_type_code]) ||
                       '#6B7280';
 
@@ -133,6 +141,30 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
 
           polylinesRef.current.push(polygon);
           map3d.appendChild(polygon);
+        } else if (geometryType === 'MultiLineString') {
+          // For MultiLineStrings: create multiple polylines (one for each line segment)
+          const lines = lane.geometry.coordinates;
+
+          lines.forEach((coords: number[][], lineIndex: number) => {
+            // Convert GeoJSON coordinates [lng, lat] to {lat, lng}
+            const path = coords.map(([lng, lat]: [number, number]) => ({
+              lat,
+              lng,
+              altitude: 0,
+            }));
+
+            // Create polyline element for this line segment
+            const polyline = document.createElement('gmp-polyline-3d') as any;
+            polyline.id = `${id}-line-${lineIndex}`;
+            polyline.setAttribute('stroke-color', color);
+            polyline.setAttribute('stroke-width', width.toString());
+            polyline.setAttribute('altitude-mode', 'clamp-to-ground');
+            polyline.setAttribute('draws-occluded-segments', 'false');
+            polyline.path = path;
+
+            polylinesRef.current.push(polyline);
+            map3d.appendChild(polyline);
+          });
         } else {
           // For LineStrings: use gmp-polyline-3d (stroke only)
           const coords = lane.geometry.coordinates;

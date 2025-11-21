@@ -409,7 +409,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
         <div className="flex-shrink-0 border-t border-white/10 p-6">
           {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-              Error: {error.message}. Please check your OpenAI API key in .env.local
+              Error: {error.message}
             </div>
           )}
 
