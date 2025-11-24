@@ -11,9 +11,12 @@ interface LaneFeature {
     lane_type_code?: string;
     color?: string;
     type?: string;  // e.g., 'parking', 'ev_parking', 'charging_station'
+    object_type?: string;  // e.g., 'parking_spot', 'curb', 'roadway'
     fill_opacity?: number;
     stroke_width?: number;
+    stroke_color?: string;
     marker_size?: number;
+    remaining_roadway_width?: number;  // Width measurement value
   };
   geometry: {
     type: string;
@@ -37,9 +40,10 @@ const LANE_COLORS: Record<string, string> = {
 
 // Object type color mapping for Zürich data
 const OBJECT_TYPE_COLORS: Record<string, string> = {
-  'parking_spot': '#00F0FF',  // Neon Cyan - highly visible parking
+  'parking_spot': '#00FFFF',  // Bright Cyan - highly visible parking
   'curb': '#FFFFFF',          // White - street edges
   'roadway': '#FFA500',       // Orange - remaining road width
+  'remaining_width': '#FF8C00', // Dark Orange - for roadway width indicators
 };
 
 export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
@@ -49,28 +53,64 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
   useEffect(() => {
     if (!maps3dLibrary || lanes.length === 0 || !visible) return;
 
+    // Quick check: are we rendering parking data?
+    const hasParkingSpots = lanes.some(lane => lane.properties.object_type === 'parking_spot');
+    if (hasParkingSpots) {
+      console.log(`🅿️ NetworkOverlay: Rendering parking spots! Total lanes: ${lanes.length}`);
+    }
+
     let mounted = true;
 
-    // Wait for the custom element to be defined
-    customElements.whenDefined('gmp-polyline-3d').then(() => {
+    // Wait for the custom elements to be defined
+    Promise.all([
+      customElements.whenDefined('gmp-polyline-3d'),
+      customElements.whenDefined('gmp-polygon-3d')
+    ]).then(() => {
       if (!mounted) return;
 
       const map3d = document.querySelector('gmp-map-3d');
       if (!map3d) return;
 
-      console.log(`Creating ${lanes.length} polylines...`);
+      console.log(`🎨 Rendering ${lanes.length} network features...`);
+
+      // Track geometry types for debugging
+      const geometryTypes: Record<string, number> = {};
+      let parkingCount = 0;
+      let polygonCount = 0;
 
       // Create all polylines/polygons/markers at once
       lanes.forEach((lane, index) => {
         const geometryType = lane.geometry.type;
+        geometryTypes[geometryType] = (geometryTypes[geometryType] || 0) + 1;
 
-        // Get color - prioritize: feature color > object type > lane type code > default
-        const color = lane.properties.color ||
-                      (lane.properties.object_type && OBJECT_TYPE_COLORS[lane.properties.object_type]) ||
-                      (lane.properties.lane_type_code && LANE_COLORS[lane.properties.lane_type_code]) ||
-                      '#6B7280';
+        // Debug parking spots specifically - only count Polygons as actual parking spots
+        if (lane.properties.object_type === 'parking_spot' && geometryType === 'Polygon') {
+          parkingCount++;
+          console.log(`🚗 Parking spot ${parkingCount}: geometry=${geometryType}, color=${lane.properties.color}`);
+          if (parkingCount <= 2) {
+            console.log(`   Coordinates:`, lane.geometry.coordinates);
+          }
+        }
 
-        const width = lane.properties.stroke_width || Math.max(lane.properties.width || 3.5, 4);
+        // Determine color based on geometry type and properties
+        // For LineStrings with parking_spot object_type, treat as roadway width indicators
+        let color = '#6B7280'; // Default gray
+
+        if (geometryType === 'Polygon' && lane.properties.object_type === 'parking_spot') {
+          // Real parking spots (polygons) - bright cyan
+          color = '#00FFFF';
+        } else if (geometryType === 'LineString' && lane.properties.object_type === 'parking_spot') {
+          // Roadway width indicators mislabeled as parking - orange
+          color = '#FF8C00';
+        } else {
+          // Use standard color mapping
+          color = lane.properties.color ||
+                  (lane.properties.object_type && OBJECT_TYPE_COLORS[lane.properties.object_type]) ||
+                  (lane.properties.lane_type_code && LANE_COLORS[lane.properties.lane_type_code]) ||
+                  '#6B7280';
+        }
+
+        const width = lane.properties.stroke_width || 6;  // Default to thicker lines for visibility
         const id = `network-lane-${lane.properties.street_id || lane.properties.type || index}-${index}`;
 
         // Remove existing element if it exists to ensure fresh rendering
@@ -115,29 +155,59 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
           polylinesRef.current.push(marker);
           map3d.appendChild(marker);
         } else if (geometryType === 'Polygon') {
+          polygonCount++;
           // For Polygons: use gmp-polygon-3d with fill
           const outerRing = lane.geometry.coordinates[0];
 
           // Convert GeoJSON coordinates [lng, lat] to {lat, lng}
-          const path = outerRing.map(([lng, lat]: [number, number]) => ({
-            lat,
-            lng,
-            altitude: 0,
-          }));
+          // Add slight elevation for parking spots to ensure visibility
+          const isParking = lane.properties.type === 'parking' ||
+                          lane.properties.object_type === 'parking_spot';
+
+          if (isParking) {
+            console.log(`   🅿️ Creating parking polygon ${polygonCount}`);
+          }
+
+          const altitude = isParking ? 5.0 : 0;  // Much higher elevation for better visibility
+
+          const path = outerRing.map((coord: number[]) => {
+            const [lng, lat] = coord;
+            return {
+              lat,
+              lng,
+              altitude: altitude,
+            };
+          });
 
           // Get opacity from properties or use default
-          const fillOpacity = lane.properties.fill_opacity !== undefined ? lane.properties.fill_opacity : 0.7;
+          // Use high opacity for parking spots for better visibility
+          const fillOpacity = isParking ? 0.8 : (lane.properties.fill_opacity !== undefined ? lane.properties.fill_opacity : 0.7);
           const alphaHex = Math.round(fillOpacity * 255).toString(16).padStart(2, '0').toUpperCase();
+
+          // Get stroke color (can be different from fill color)
+          // Use bright colors for parking spots
+          const fillColor = isParking ? '#00FFFF' : color;  // Bright cyan for parking
+          const strokeColor = isParking ? '#FFFF00' : (lane.properties.stroke_color || color);  // Yellow stroke for parking
+
+          if (isParking) {
+            console.log(`     Fill color: ${fillColor + alphaHex}, Stroke: ${strokeColor}`);
+            console.log(`     Path points: ${path.length}, Altitude: ${altitude}m`);
+          }
 
           // Create polygon element with fill
           const polygon = document.createElement('gmp-polygon-3d') as any;
           polygon.id = id;
-          polygon.setAttribute('fill-color', color + alphaHex);  // Apply opacity
-          polygon.setAttribute('stroke-color', color);
-          polygon.setAttribute('stroke-width', width.toString());
-          polygon.setAttribute('altitude-mode', 'clamp-to-ground');
+          polygon.setAttribute('fill-color', fillColor + alphaHex);  // Use appropriate fill color
+          polygon.setAttribute('stroke-color', strokeColor);
+          polygon.setAttribute('stroke-width', isParking ? '10' : width.toString());  // Much thicker stroke for parking visibility
+          polygon.setAttribute('altitude-mode', isParking ? 'relative-to-ground' : 'clamp-to-ground');
           polygon.setAttribute('draws-occluded-segments', 'false');
+          polygon.setAttribute('z-index', isParking ? '100' : '1');  // Much higher z-index for parking
           polygon.outerCoordinates = path;
+
+          if (isParking) {
+            console.log(`     ✅ Parking polygon created and added to DOM`);
+          }
 
           polylinesRef.current.push(polygon);
           map3d.appendChild(polygon);
@@ -147,11 +217,14 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
 
           lines.forEach((coords: number[][], lineIndex: number) => {
             // Convert GeoJSON coordinates [lng, lat] to {lat, lng}
-            const path = coords.map(([lng, lat]: [number, number]) => ({
-              lat,
-              lng,
-              altitude: 0,
-            }));
+            const path = coords.map((coord: number[]) => {
+              const [lng, lat] = coord;
+              return {
+                lat,
+                lng,
+                altitude: 0,
+              };
+            });
 
             // Create polyline element for this line segment
             const polyline = document.createElement('gmp-polyline-3d') as any;
@@ -170,11 +243,14 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
           const coords = lane.geometry.coordinates;
 
           // Convert GeoJSON coordinates [lng, lat] to {lat, lng}
-          const path = coords.map(([lng, lat]: [number, number]) => ({
-            lat,
-            lng,
-            altitude: 0,
-          }));
+          const path = coords.map((coord: number[]) => {
+            const [lng, lat] = coord;
+            return {
+              lat,
+              lng,
+              altitude: 0,
+            };
+          });
 
           // Create polyline element
           const polyline = document.createElement('gmp-polyline-3d') as any;
@@ -190,7 +266,10 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
         }
       });
 
-      console.log(`Added ${polylinesRef.current.length} polylines to map`);
+      console.log(`✅ Added ${polylinesRef.current.length} elements to map`);
+      console.log(`   Geometry breakdown:`, geometryTypes);
+      console.log(`   🚗 Parking spots found: ${parkingCount}`);
+      console.log(`   📐 Polygons created: ${polygonCount}`);
     });
 
     // Cleanup function
