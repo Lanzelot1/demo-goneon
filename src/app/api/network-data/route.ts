@@ -9,8 +9,6 @@ export async function GET(request: Request) {
     const dataType = searchParams.get('type') || 'lanes';
     const mapName = searchParams.get('map') || 'zürich/curbs';
 
-    console.log(`[API] network-data: type=${dataType}, map=${mapName}`);
-
     // Map selection for different transformation states
     const mapFiles: Record<string, string> = {
       'initial_network': 'Maps/initial_network.geojson',
@@ -29,18 +27,9 @@ export async function GET(request: Request) {
       : (mapFiles[mapName] || mapFiles['zürich/curbs']);
     const filePath = path.join(process.cwd(), 'public', 'data', filename);
 
-    console.log(`[API] Loading file: ${filename}`);
-    console.log(`[API] Full path: ${filePath}`);
-
     // Read the GeoJSON file
     const fileContents = await fs.readFile(filePath, 'utf8');
     const geojson = JSON.parse(fileContents);
-
-    // Debug: Check what geometry type we're returning
-    if (geojson.features && geojson.features.length > 0) {
-      console.log(`[API] First feature geometry type: ${geojson.features[0].geometry.type}`);
-      console.log(`[API] First feature object_type: ${geojson.features[0].properties?.object_type}`);
-    }
 
     // Return the GeoJSON with proper headers
     return NextResponse.json(geojson, {

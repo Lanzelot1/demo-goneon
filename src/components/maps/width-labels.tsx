@@ -51,7 +51,6 @@ export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
       return;
     }
 
-
     // Create markers for each width measurement
     features.forEach((feature, index) => {
       if (feature.geometry.type !== 'LineString') return;
@@ -100,7 +99,6 @@ export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
         console.error('Error creating width label marker:', error);
       }
     });
-
 
     // Cleanup function
     return () => {

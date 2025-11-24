@@ -38,22 +38,21 @@ interface LaneGeoJSON {
   features: LaneFeature[];
 }
 
-// Central Zürich - parking location view (focused on parking area)
+// Central Zürich - focused on parking area
 const CENTRAL_ZURICH = {
-  lat: 47.388,  // Adjusted to center on parking spots
-  lng: 8.548,   // Adjusted to center on parking spots
+  lat: 47.388,
+  lng: 8.548,
   altitude: 0
 };
 
-// Initial camera position for photorealistic 3D view - zoomed in for parking visibility
+// Initial camera position for 3D view
 const INITIAL_CAMERA_PROPS: Map3DCameraProps = {
   center: CENTRAL_ZURICH,
-  range: 300, // Much closer - street level view for parking spot visibility
-  heading: 25, // Slight rotation for better building visibility
-  tilt: 45, // Increased tilt for better 3D parking spot visibility
+  range: 300,
+  heading: 25,
+  tilt: 45,
   roll: 0
 };
-
 
 export function GoogleMap3D({
   className = "",
@@ -68,13 +67,10 @@ export function GoogleMap3D({
   const [overlayLayers, setOverlayLayers] = useState<Record<string, LaneFeature[]>>({});
   const [showNetwork, setShowNetwork] = useState(true);
 
-
-  // Fetch base network AND overlay data from API (combined loading)
+  // Fetch base network and overlay data
   useEffect(() => {
-    console.log('📊 Loading network data...');
-
     // Load base network
-    fetch(`/api/network-data?type=lanes&map=${mapState.baseNetwork}&t=` + Date.now(), {
+    fetch(`/api/network-data?type=lanes&map=${mapState.baseNetwork}&t=${Date.now()}`, {
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -83,7 +79,7 @@ export function GoogleMap3D({
     })
       .then(res => res.json())
       .then((data: LaneGeoJSON) => {
-        // Add color to base network features (curbs should be white/gray)
+        // Add default color for curbs
         const featuresWithColor = data.features.map(feature => ({
           ...feature,
           properties: {
@@ -92,22 +88,17 @@ export function GoogleMap3D({
           }
         }));
         setLanes(featuresWithColor);
-        console.log(`✅ Loaded ${data.features.length} lanes from base network: ${mapState.baseNetwork}`);
       })
       .catch(err => {
         console.error('Failed to load base network:', err);
         setError('Failed to load network data');
       });
 
-    // Load overlays using the same API endpoint
-    if (mapState.overlays && mapState.overlays.length > 0) {
-      console.log('📥 Loading overlays:', mapState.overlays);
-
+    // Load overlays
+    if (mapState.overlays?.length > 0) {
       const overlayPromises = mapState.overlays.map(async (overlayName) => {
         try {
-          console.log(`  📡 Fetching: /api/network-data?map=${overlayName}`);
-
-          const response = await fetch(`/api/network-data?map=${overlayName}&t=` + Date.now(), {
+          const response = await fetch(`/api/network-data?map=${overlayName}&t=${Date.now()}`, {
             cache: 'no-store',
             headers: {
               'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -116,35 +107,9 @@ export function GoogleMap3D({
           });
 
           const data: LaneGeoJSON = await response.json();
-          console.log(`  ✅ Loaded ${data.features.length} features from overlay: ${overlayName}`);
-
-          // DEBUG: Check what we actually received
-          if (data.features.length > 0) {
-            console.log(`     First feature for ${overlayName}:`);
-            console.log(`       - Geometry type: ${data.features[0].geometry.type}`);
-            console.log(`       - Object type: ${data.features[0].properties.object_type}`);
-            console.log(`       - Feature type: ${data.features[0].properties.feature_type}`);
-          }
-
-          // Add color to overlay features based on overlay type
-          const overlayColor = overlayName.includes('parking_spots') ? '#00F0FF'  // Neon Cyan for parking spots
-                             : overlayName.includes('remaining_roadway') ? '#FF6600'  // Bright orange for roadway width
-                             : undefined;
-
-          const featuresWithColor = data.features.map(feature => ({
-            ...feature,
-            properties: {
-              ...feature.properties,
-              color: feature.properties.color || overlayColor,
-              stroke_width: overlayName.includes('parking_spots') ? 3 : 2,
-              fill_opacity: overlayName.includes('parking_spots') ? 0.7 : undefined,
-              stroke_color: overlayName.includes('parking_spots') ? '#00D4E6' : undefined
-            }
-          }));
-
-          return { name: overlayName, features: featuresWithColor };
+          return { name: overlayName, features: data.features };
         } catch (err) {
-          console.error(`❌ Failed to load overlay ${overlayName}:`, err);
+          console.error(`Failed to load overlay ${overlayName}:`, err);
           return null;
         }
       });
@@ -156,7 +121,6 @@ export function GoogleMap3D({
             newOverlays[result.name] = result.features;
           }
         });
-        console.log('📦 Setting overlay layers with keys:', Object.keys(newOverlays));
         setOverlayLayers(newOverlays);
       });
     } else {
@@ -164,11 +128,8 @@ export function GoogleMap3D({
     }
   }, [mapState.baseNetwork, JSON.stringify(mapState.overlays)]);
 
-
   const handleCameraChange = useCallback((props: Map3DCameraProps) => {
     setCameraProps(props);
-
-    // Clear loading state when map starts responding to camera changes
     if (isLoading) {
       setIsLoading(false);
     }
@@ -184,10 +145,7 @@ export function GoogleMap3D({
   // Expose camera update function to parent
   useEffect(() => {
     if (onCameraReady) {
-      const updateCamera = (props: Map3DCameraProps) => {
-        setCameraProps(props);
-      };
-      onCameraReady(updateCamera);
+      onCameraReady((props: Map3DCameraProps) => setCameraProps(props));
     }
   }, [onCameraReady]);
 
@@ -257,7 +215,7 @@ export function GoogleMap3D({
         </div>
       )}
 
-      {/* Official Map3D Component with Photorealistic 3D */}
+      {/* Map with Network Overlays */}
       <APIProvider apiKey={apiKey}>
         <div style={{ width: '100%', height: '100%', minHeight: '400px' }}>
           <Map3D
@@ -265,10 +223,10 @@ export function GoogleMap3D({
             onCameraChange={handleCameraChange}
           />
 
-          {/* Render base network lanes */}
+          {/* Base network */}
           <NetworkOverlay lanes={lanes} visible={showNetwork} />
 
-          {/* Render overlay layers (parking, charging stations, etc.) */}
+          {/* Overlay layers */}
           {Object.entries(overlayLayers).map(([layerName, features]) => (
             <NetworkOverlay
               key={layerName}
@@ -277,9 +235,8 @@ export function GoogleMap3D({
             />
           ))}
 
-          {/* Render width measurement labels */}
+          {/* Width measurement labels */}
           {Object.entries(overlayLayers).map(([layerName, features]) => {
-            // Only render labels for width measurement layers
             if (layerName.includes('remaining_roadway_width')) {
               return (
                 <WidthLabels
