@@ -116,24 +116,21 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
         } else if (geometryType === 'Polygon') {
           // Render filled polygons (parking spots, etc.)
           const outerRing = lane.geometry.coordinates[0];
-          const isParking = lane.properties.type === 'parking' || lane.properties.object_type === 'parking_spot';
 
           const path = outerRing.map((coord: number[]) => ({
             lat: coord[1],
             lng: coord[0],
-            altitude: isParking ? 3 : 0,
+            altitude: 0,
           }));
 
-          const fillOpacity = lane.properties.fill_opacity ?? 0.7;
-          const alphaHex = Math.round(fillOpacity * 255).toString(16).padStart(2, '0').toUpperCase();
           const strokeColor = lane.properties.stroke_color || color;
 
           const polygon = document.createElement('gmp-polygon-3d') as any;
           polygon.id = id;
-          polygon.setAttribute('fill-color', color + alphaHex);
+          polygon.setAttribute('fill-color', '#00000000');
           polygon.setAttribute('stroke-color', strokeColor);
           polygon.setAttribute('stroke-width', width.toString());
-          polygon.setAttribute('altitude-mode', isParking ? 'relative-to-ground' : 'clamp-to-ground');
+          polygon.setAttribute('altitude-mode', 'clamp-to-ground');
           polygon.setAttribute('draws-occluded-segments', 'false');
           polygon.outerCoordinates = path;
 

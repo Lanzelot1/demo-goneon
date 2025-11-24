@@ -48,7 +48,7 @@ const CENTRAL_ZURICH = {
 // Initial camera position for 3D view
 const INITIAL_CAMERA_PROPS: Map3DCameraProps = {
   center: CENTRAL_ZURICH,
-  range: 300,
+  range: 500,
   heading: 25,
   tilt: 45,
   roll: 0
