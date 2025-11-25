@@ -645,6 +645,7 @@ export async function POST(req: Request) {
               mapState: {
                 baseNetwork: 'zürich/curbs',
                 overlays: ['zürich/parking_spots', 'zürich/remaining_roadway_width'],
+                timestamp: Date.now(),
               },
               message: `Parking design updated: ${parkingSpotsCount} spots with ${parking_spot_width || 2.0}m width and ${dooring_margin || 1.5}m safety margin.`,
             };

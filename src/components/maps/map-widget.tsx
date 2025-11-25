@@ -19,6 +19,7 @@ import { FloatingParticles } from "@/components/FloatingParticles";
 export interface MapState {
   baseNetwork: string;
   overlays: string[];
+  timestamp?: number;
 }
 
 interface NetworkStats {

@@ -8,12 +8,14 @@ import { MapWidget } from "@/components/maps/map-widget";
 export interface MapState {
   baseNetwork: string;
   overlays: string[];
+  timestamp?: number;
 }
 
 export default function Home() {
   const [mapState, setMapState] = useState<MapState>({
     baseNetwork: "zürich/curbs",
-    overlays: ["zürich/parking_spots", "zürich/remaining_roadway_width"]
+    overlays: ["zürich/parking_spots", "zürich/remaining_roadway_width"],
+    timestamp: Date.now()
   });
   const updateCameraRef = useRef<((props: any) => void) | null>(null);
 

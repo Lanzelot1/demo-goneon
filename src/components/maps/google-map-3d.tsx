@@ -9,6 +9,7 @@ import { WidthLabels } from './width-labels';
 export interface MapState {
   baseNetwork: string;
   overlays: string[];
+  timestamp?: number;
 }
 
 interface GoogleMap3DProps {
@@ -126,7 +127,7 @@ export function GoogleMap3D({
     } else {
       setOverlayLayers({});
     }
-  }, [mapState.baseNetwork, JSON.stringify(mapState.overlays)]);
+  }, [mapState.baseNetwork, JSON.stringify(mapState.overlays), mapState.timestamp]);
 
   const handleCameraChange = useCallback((props: Map3DCameraProps) => {
     setCameraProps(props);
