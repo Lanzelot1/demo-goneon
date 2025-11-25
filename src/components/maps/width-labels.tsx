@@ -32,9 +32,10 @@ interface WidthLabelsProps {
 export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
   const markersRef = useRef<HTMLElement[]>([]);
   const maps3dLibrary = useMapsLibrary('maps3d');
+  const markerLibrary = useMapsLibrary('marker');
 
   useEffect(() => {
-    if (!maps3dLibrary || features.length === 0 || !visible) return;
+    if (!maps3dLibrary || !markerLibrary || features.length === 0 || !visible) return;
 
     let mounted = true;
 
@@ -75,11 +76,11 @@ export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
         marker.setAttribute('altitude-mode', 'relative-to-ground');
         marker.setAttribute('label', `${width.toFixed(1)}m`);
 
-        // Add a very small pin to minimize visual clutter
-        const pin = document.createElement('gmp-pin') as any;
-        pin.setAttribute('scale', '0.1');
-        pin.setAttribute('glyph-text', '');
-        marker.appendChild(pin);
+        // Add a very small pin to minimize visual clutter using proper PinElement API
+        const pin = new markerLibrary.PinElement({
+          scale: 0.1
+        });
+        marker.appendChild(pin.element);
 
         markersRef.current.push(marker);
         map3d.appendChild(marker);
@@ -96,7 +97,7 @@ export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
       });
       markersRef.current = [];
     };
-  }, [maps3dLibrary, features, visible]);
+  }, [maps3dLibrary, markerLibrary, features, visible]);
 
   return null;
 }
