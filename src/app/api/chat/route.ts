@@ -526,6 +526,112 @@ export async function POST(req: Request) {
           };
         },
       },
+      design_parking: {
+        description: 'Design parking spots for Zürich with custom widths and safety margins using the goNEON backend calculator. This MICRO-level tool recalculates parking geometries based on design rules.',
+        inputSchema: z.object({
+          parking_spot_width: z.number().min(2.0).max(4.0).optional()
+            .describe('Width of parking spots in meters (2.0-4.0m, default: 2.0m)'),
+          dooring_margin: z.number().min(0.5).max(2.0).optional()
+            .describe('Safety margin for car door opening in meters (0.5-2.0m, default: 1.5m)'),
+        }),
+        execute: async ({ parking_spot_width, dooring_margin }) => {
+          try {
+            // Build rules array for backend API
+            const rules: any[] = [];
+
+            if (parking_spot_width) {
+              rules.push({
+                ontology: 'ParkingSpot',
+                attribute: 'parking_spot_width',
+                value_min: parking_spot_width,
+                value_max: parking_spot_width,
+              });
+            }
+
+            if (dooring_margin) {
+              rules.push({
+                ontology: 'ParkingSpot',
+                attribute: 'dooring_margin',
+                value_min: dooring_margin,
+                value_max: dooring_margin,
+              });
+            }
+
+            // Call backend API
+            const response = await fetch('http://localhost:8000/design', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ rules }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`Backend API returned ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Save GeoJSON files to public/data/zürich/
+            const fs = await import('fs/promises');
+            const path = await import('path');
+
+            const zurichDir = path.join(process.cwd(), 'public', 'data', 'zürich');
+
+            // Ensure directory exists
+            await fs.mkdir(zurichDir, { recursive: true });
+
+            // Save the three GeoJSON files
+            if (data.parking_spots) {
+              await fs.writeFile(
+                path.join(zurichDir, 'parking_spots.geojson'),
+                JSON.stringify(data.parking_spots, null, 2)
+              );
+            }
+
+            if (data.safety_margins) {
+              await fs.writeFile(
+                path.join(zurichDir, 'safety_margins.geojson'),
+                JSON.stringify(data.safety_margins, null, 2)
+              );
+            }
+
+            if (data.remaining_roadway_widths) {
+              await fs.writeFile(
+                path.join(zurichDir, 'remaining_roadway_width.geojson'),
+                JSON.stringify(data.remaining_roadway_widths, null, 2)
+              );
+            }
+
+            // Count features
+            const parkingSpotsCount = data.parking_spots?.features?.length || 0;
+            const remainingWidthsCount = data.remaining_roadway_widths?.features?.length || 0;
+
+            return {
+              status: 'success',
+              action: 'design_parking',
+              parking_spot_width: parking_spot_width || 2.0,
+              dooring_margin: dooring_margin || 1.5,
+              features_updated: {
+                parking_spots: parkingSpotsCount,
+                remaining_widths: remainingWidthsCount,
+              },
+              mapState: {
+                baseNetwork: 'zürich/curbs',
+                overlays: ['zürich/parking_spots', 'zürich/remaining_roadway_width'],
+              },
+              message: `Parking design updated: ${parkingSpotsCount} spots with ${parking_spot_width || 2.0}m width and ${dooring_margin || 1.5}m safety margin.`,
+            };
+          } catch (error) {
+            console.error('Design parking error:', error);
+            return {
+              status: 'error',
+              action: 'design_parking',
+              message: `Failed to connect to goNEON backend: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure the backend server is running on http://localhost:8000`,
+            };
+          }
+        },
+      },
       suggest_beta_booking: {
         description: 'Suggest the user to book a beta demo call with goNEON to explore more features and get personalized assistance. Use this after the user has made 4+ prompts to encourage them to learn more about the full platform.',
         inputSchema: z.object({
@@ -638,6 +744,13 @@ You have access to several tools:
     2. Extract the first coordinate from the sample_locations array
     3. Immediately run jump_to_location with custom_lat and custom_lng from that coordinate
     4. This navigates users to EXACTLY where the analyzed features are located (not a generic predefined location)
+- 'design_parking' - Design parking spots with custom dimensions for Zürich (MICRO level):
+  * Recalculates parking geometries using the goNEON backend calculator
+  * Parameters: parking_spot_width (2.0-4.0m, default 2.0m), dooring_margin (0.5-2.0m, default 1.5m)
+  * Updates parking spots, safety margins, and remaining roadway width visualizations
+  * Use this when users want to adjust parking spot sizes or safety margins in Zürich
+  * Example: "make parking spots 2.5 meters wide" or "increase dooring margin to 1.0 meter"
+  * Requires the goNEON backend server running on http://localhost:8000
 
 **Important**: When users ask to visit locations outside the coverage area (like Park Güell, Camp Nou, beaches, or Sant Adrià), politely inform them that this demo focuses on Central Barcelona where the street network data is available. Suggest they explore locations within the coverage area instead to see the full street network visualization capabilities.
 
