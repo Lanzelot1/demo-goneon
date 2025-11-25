@@ -50,10 +50,11 @@ const MOCK_STATS: NetworkStats = {
 
 interface MapWidgetProps {
   mapState: MapState;
+  overlayData?: any;
   onCameraReady?: (updateCamera: (props: any) => void) => void;
 }
 
-export function MapWidget({ mapState, onCameraReady }: MapWidgetProps) {
+export function MapWidget({ mapState, overlayData, onCameraReady }: MapWidgetProps) {
   const [showStats, setShowStats] = useState(false);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [activeLayers, setActiveLayers] = useState({
@@ -128,6 +129,7 @@ export function MapWidget({ mapState, onCameraReady }: MapWidgetProps) {
           className="h-full w-full"
           onMapLoad={handleMapLoad}
           mapState={mapState}
+          overlayData={overlayData}
           onCameraReady={onCameraReady}
         />
 

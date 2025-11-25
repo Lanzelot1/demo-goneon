@@ -66,9 +66,10 @@ const EXPLORATION_COMMANDS = [
 interface ChatInterfaceProps {
   onMapChange?: (mapName: string) => void;
   onCameraUpdate?: (cameraData: any) => void;
+  onOverlayDataChange?: (data: any) => void;
 }
 
-export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProps) {
+export function ChatInterface({ onMapChange, onCameraUpdate, onOverlayDataChange }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [pendingMessage, setPendingMessage] = useState<UIMessage | null>(null);
   const processedToolOutputs = useRef<Set<string>>(new Set());
@@ -222,6 +223,11 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
             onCameraUpdate(output.camera);
           }
 
+          // Handle overlay data from design_parking tool
+          if (output.geojson && onOverlayDataChange) {
+            onOverlayDataChange(output.geojson);
+          }
+
           // Handle redirects for beta booking
           if (output.redirect_url) {
             window.location.href = output.redirect_url;
@@ -229,7 +235,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
         }
       });
     });
-  }, [messages, onMapChange, onCameraUpdate]);
+  }, [messages, onMapChange, onCameraUpdate, onOverlayDataChange]);
 
   const handleSuggestion = (suggestion: string) => {
     setInput(suggestion);

@@ -16,6 +16,7 @@ interface GoogleMap3DProps {
   className?: string;
   onMapLoad?: (map: google.maps.Map) => void;
   mapState: MapState;
+  overlayData?: any;
   cameraPosition?: Map3DCameraProps;
   onCameraReady?: (updateCamera: (props: Map3DCameraProps) => void) => void;
 }
@@ -58,6 +59,7 @@ const INITIAL_CAMERA_PROPS: Map3DCameraProps = {
 export function GoogleMap3D({
   className = "",
   mapState,
+  overlayData,
   cameraPosition,
   onCameraReady
 }: GoogleMap3DProps) {
@@ -95,8 +97,24 @@ export function GoogleMap3D({
         setError('Failed to load network data');
       });
 
-    // Load overlays
-    if (mapState.overlays?.length > 0) {
+    // Load overlays from props or fetch from API
+    if (overlayData) {
+      // Use overlay data from tool execution (Vercel-compatible)
+      const newOverlays: Record<string, LaneFeature[]> = {};
+
+      if (overlayData.parking_spots) {
+        newOverlays['zürich/parking_spots'] = overlayData.parking_spots.features;
+      }
+      if (overlayData.remaining_roadway_widths) {
+        newOverlays['zürich/remaining_roadway_width'] = overlayData.remaining_roadway_widths.features;
+      }
+      if (overlayData.safety_margins) {
+        newOverlays['zürich/safety_margins'] = overlayData.safety_margins.features;
+      }
+
+      setOverlayLayers(newOverlays);
+    } else if (mapState.overlays?.length > 0) {
+      // Fetch default overlays from API (on initial load or reload)
       const overlayPromises = mapState.overlays.map(async (overlayName) => {
         try {
           const response = await fetch(`/api/network-data?map=${overlayName}&t=${Date.now()}`, {
@@ -127,7 +145,7 @@ export function GoogleMap3D({
     } else {
       setOverlayLayers({});
     }
-  }, [mapState.baseNetwork, JSON.stringify(mapState.overlays), mapState.timestamp]);
+  }, [mapState.baseNetwork, JSON.stringify(mapState.overlays), mapState.timestamp, overlayData]);
 
   const handleCameraChange = useCallback((props: Map3DCameraProps) => {
     setCameraProps(props);

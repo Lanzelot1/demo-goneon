@@ -15,10 +15,11 @@ export async function GET(request: Request) {
       'one_superblock': 'Maps/one_superblock.geojson',
       'cycling_corridor': 'Maps/cycling_corridor.geojson',
       'all_superblocks': 'Maps/all_superblocks.geojson',
-      // Zürich data files
+      // Zürich data files (defaults - immutable)
       'zürich/curbs': 'zürich/curbs.geojson',
-      'zürich/parking_spots': 'zürich/parking_spots.geojson',
-      'zürich/remaining_roadway_width': 'zürich/remaining_roadway_width.geojson',
+      'zürich/parking_spots': 'zürich/parking_spots_default.geojson',
+      'zürich/remaining_roadway_width': 'zürich/remaining_roadway_width_default.geojson',
+      'zürich/safety_margins': 'zürich/safety_margins_default.geojson',
     };
 
     // Define the file path

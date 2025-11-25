@@ -17,6 +17,7 @@ export default function Home() {
     overlays: ["zürich/parking_spots", "zürich/remaining_roadway_width"],
     timestamp: Date.now()
   });
+  const [overlayData, setOverlayData] = useState<any>(null);
   const updateCameraRef = useRef<((props: any) => void) | null>(null);
 
   const handleMapChange = (mapName: string | MapState) => {
@@ -51,6 +52,11 @@ export default function Home() {
     }
   };
 
+  const handleOverlayDataChange = (data: any) => {
+    console.log(`Updating overlay data:`, data);
+    setOverlayData(data);
+  };
+
   return (
     <div className="h-screen bg-black">
       <div className="flex h-screen flex-col">
@@ -65,6 +71,7 @@ export default function Home() {
               <ChatInterface
                 onMapChange={handleMapChange}
                 onCameraUpdate={handleCameraUpdate}
+                onOverlayDataChange={handleOverlayDataChange}
               />
             </div>
           </div>
@@ -74,6 +81,7 @@ export default function Home() {
             <div className="w-full bg-black border border-white/10 rounded-xl">
               <MapWidget
                 mapState={mapState}
+                overlayData={overlayData}
                 onCameraReady={(fn) => { updateCameraRef.current = fn; }}
               />
             </div>

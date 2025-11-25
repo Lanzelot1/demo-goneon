@@ -598,37 +598,6 @@ export async function POST(req: Request) {
               }));
             }
 
-            // Save GeoJSON files to public/data/zürich/
-            const fs = await import('fs/promises');
-            const path = await import('path');
-
-            const zurichDir = path.join(process.cwd(), 'public', 'data', 'zürich');
-
-            // Ensure directory exists
-            await fs.mkdir(zurichDir, { recursive: true });
-
-            // Save the three GeoJSON files
-            if (data.parking_spots) {
-              await fs.writeFile(
-                path.join(zurichDir, 'parking_spots.geojson'),
-                JSON.stringify(data.parking_spots, null, 2)
-              );
-            }
-
-            if (data.safety_margins) {
-              await fs.writeFile(
-                path.join(zurichDir, 'safety_margins.geojson'),
-                JSON.stringify(data.safety_margins, null, 2)
-              );
-            }
-
-            if (data.remaining_roadway_widths) {
-              await fs.writeFile(
-                path.join(zurichDir, 'remaining_roadway_width.geojson'),
-                JSON.stringify(data.remaining_roadway_widths, null, 2)
-              );
-            }
-
             // Count features
             const parkingSpotsCount = data.parking_spots?.features?.length || 0;
             const remainingWidthsCount = data.remaining_roadway_widths?.features?.length || 0;
@@ -641,6 +610,12 @@ export async function POST(req: Request) {
               features_updated: {
                 parking_spots: parkingSpotsCount,
                 remaining_widths: remainingWidthsCount,
+              },
+              // Return GeoJSON data directly (Vercel-compatible, no filesystem writes)
+              geojson: {
+                parking_spots: data.parking_spots,
+                safety_margins: data.safety_margins,
+                remaining_roadway_widths: data.remaining_roadway_widths,
               },
               mapState: {
                 baseNetwork: 'zürich/curbs',
