@@ -223,9 +223,17 @@ export function ChatInterface({ onMapChange, onCameraUpdate, onOverlayDataChange
             onCameraUpdate(output.camera);
           }
 
-          // Handle overlay data from design_parking tool
-          if (output.geojson && onOverlayDataChange) {
-            onOverlayDataChange(output.geojson);
+          // Handle overlay data from design_parking tool via sessionId
+          if (output.sessionId && onOverlayDataChange) {
+            // Fetch GeoJSON from cache (avoids sending huge data to LLM)
+            fetch(`/api/geojson-data?sessionId=${output.sessionId}`)
+              .then(res => res.json())
+              .then(geojson => {
+                onOverlayDataChange(geojson);
+              })
+              .catch(err => {
+                console.error('Failed to fetch GeoJSON data:', err);
+              });
           }
 
           // Handle redirects for beta booking

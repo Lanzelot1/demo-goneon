@@ -2,6 +2,8 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import { geojsonCache } from '@/lib/geojson-cache';
 
 // Geocode an address using Google Geocoding API
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; formatted_address: string } | null> {
@@ -602,20 +604,26 @@ export async function POST(req: Request) {
             const parkingSpotsCount = data.parking_spots?.features?.length || 0;
             const remainingWidthsCount = data.remaining_roadway_widths?.features?.length || 0;
 
+            // Store GeoJSON in cache (avoid sending to LLM)
+            const sessionId = randomUUID();
+            geojsonCache.set(sessionId, {
+              data: {
+                parking_spots: data.parking_spots,
+                safety_margins: data.safety_margins,
+                remaining_roadway_widths: data.remaining_roadway_widths,
+              },
+              timestamp: Date.now(),
+            });
+
             return {
               status: 'success',
               action: 'design_parking',
               parking_spot_width: parking_spot_width || 2.0,
               dooring_margin: dooring_margin || 1.5,
+              sessionId: sessionId,  // Frontend uses this to fetch GeoJSON
               features_updated: {
                 parking_spots: parkingSpotsCount,
                 remaining_widths: remainingWidthsCount,
-              },
-              // Return GeoJSON data directly (Vercel-compatible, no filesystem writes)
-              geojson: {
-                parking_spots: data.parking_spots,
-                safety_margins: data.safety_margins,
-                remaining_roadway_widths: data.remaining_roadway_widths,
               },
               mapState: {
                 baseNetwork: 'zürich/curbs',
