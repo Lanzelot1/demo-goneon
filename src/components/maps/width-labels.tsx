@@ -75,6 +75,12 @@ export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
         marker.setAttribute('altitude-mode', 'relative-to-ground');
         marker.setAttribute('label', `${width.toFixed(1)}m`);
 
+        // Add a very small pin to minimize visual clutter
+        const pin = document.createElement('gmp-pin') as any;
+        pin.setAttribute('scale', '0.1');
+        pin.setAttribute('glyph-text', '');
+        marker.appendChild(pin);
+
         markersRef.current.push(marker);
         map3d.appendChild(marker);
       });
