@@ -558,7 +558,8 @@ export async function POST(req: Request) {
             }
 
             // Call backend API
-            const response = await fetch('http://localhost:8000/design', {
+            const backendUrl = process.env.GONEON_BACKEND_URL || 'http://localhost:8000';
+            const response = await fetch(`${backendUrl}/design`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -624,10 +625,11 @@ export async function POST(req: Request) {
             };
           } catch (error) {
             console.error('Design parking error:', error);
+            const backendUrl = process.env.GONEON_BACKEND_URL || 'http://localhost:8000';
             return {
               status: 'error',
               action: 'design_parking',
-              message: `Failed to connect to goNEON backend: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure the backend server is running on http://localhost:8000`,
+              message: `Failed to connect to goNEON backend: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure the backend server is running on ${backendUrl}`,
             };
           }
         },
