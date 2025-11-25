@@ -16,6 +16,7 @@ interface LaneFeature {
     stroke_width?: number;
     stroke_color?: string;
     marker_size?: number;
+    _rule_enforcement_result?: boolean;
   };
   geometry: {
     type: string;
@@ -123,7 +124,12 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
             altitude: 0,
           }));
 
-          const strokeColor = lane.properties.stroke_color || color;
+          // Color-code parking spots based on rule enforcement
+          let strokeColor = lane.properties.stroke_color || color;
+          if (lane.properties._rule_enforcement_result !== undefined) {
+            // Blue for compliant spots, red for non-compliant
+            strokeColor = lane.properties._rule_enforcement_result ? '#0000FF' : '#FF0000';
+          }
 
           const polygon = document.createElement('gmp-polygon-3d') as any;
           polygon.id = id;

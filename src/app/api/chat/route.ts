@@ -558,7 +558,7 @@ export async function POST(req: Request) {
             }
 
             // Call backend API
-            const backendUrl = process.env.GONEON_BACKEND_URL || 'http://localhost:8000';
+            const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
             const response = await fetch(`${backendUrl}/design`, {
               method: 'POST',
               headers: {
@@ -650,7 +650,7 @@ export async function POST(req: Request) {
             };
           } catch (error) {
             console.error('Design parking error:', error);
-            const backendUrl = process.env.GONEON_BACKEND_URL || 'http://localhost:8000';
+            const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
             return {
               status: 'error',
               action: 'design_parking',
