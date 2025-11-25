@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
+import { useMapsLibrary } from '@vis.gl/react-google-maps';
 
 interface LaneFeature {
   type: string;
@@ -30,87 +30,67 @@ interface WidthLabelsProps {
 }
 
 export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
-  const map = useMap();
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const markersLibrary = useMapsLibrary('marker');
+  const markersRef = useRef<HTMLElement[]>([]);
+  const maps3dLibrary = useMapsLibrary('maps3d');
 
   useEffect(() => {
-    if (!map || !markersLibrary || !visible) return;
+    if (!maps3dLibrary || features.length === 0 || !visible) return;
 
-    // Clean up existing markers
-    markersRef.current.forEach(marker => {
-      if (marker.map) {
-        marker.map = null;
-      }
-    });
-    markersRef.current = [];
+    let mounted = true;
 
-    // Wait for the AdvancedMarkerElement to be available
-    if (!markersLibrary.AdvancedMarkerElement) {
-      console.warn('AdvancedMarkerElement not available');
-      return;
-    }
+    // Wait for the 3D marker element to be defined
+    customElements.whenDefined('gmp-marker-3d').then(() => {
+      if (!mounted) return;
 
-    // Create markers for each width measurement
-    features.forEach((feature, index) => {
-      if (feature.geometry.type !== 'LineString') return;
+      const map3d = document.querySelector('gmp-map-3d');
+      if (!map3d) return;
 
-      const width = feature.properties.remaining_roadway_width;
-      if (!width) return;  // Skip if no width value
+      // Create markers for each width measurement
+      features.forEach((feature, index) => {
+        if (feature.geometry.type !== 'LineString') return;
 
-      // Calculate midpoint of the line
-      const coords = feature.geometry.coordinates as number[][];
-      const midIndex = Math.floor(coords.length / 2);
-      const midpoint = coords[midIndex];
+        const width = feature.properties.remaining_roadway_width;
+        if (!width) return;
 
-      if (!midpoint || midpoint.length < 2) return;
+        // Calculate midpoint of the line
+        const coords = feature.geometry.coordinates as number[][];
+        const midIndex = Math.floor(coords.length / 2);
+        const midpoint = coords[midIndex];
 
-      const [lng, lat] = midpoint;
+        if (!midpoint || midpoint.length < 2) return;
 
-      // Create a custom HTML element for the label
-      const labelDiv = document.createElement('div');
-      labelDiv.className = 'width-label';
-      labelDiv.style.cssText = `
-        background-color: rgba(255, 102, 0, 0.9);
-        color: white;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-size: 11px;
-        font-weight: bold;
-        font-family: monospace;
-        white-space: nowrap;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        border: 1px solid rgba(255, 102, 0, 1);
-        z-index: 100;
-      `;
-      labelDiv.textContent = `${width.toFixed(1)}m`;
+        const [lng, lat] = midpoint;
+        const id = `width-label-${index}`;
 
-      // Create the advanced marker
-      try {
-        const marker = new markersLibrary.AdvancedMarkerElement({
-          map: map,
-          position: { lat, lng },
-          content: labelDiv,
-          zIndex: 1000,  // Ensure labels appear above other elements
-        });
+        // Remove existing element if it exists
+        const existing = document.getElementById(id);
+        if (existing?.parentNode) {
+          existing.parentNode.removeChild(existing);
+        }
+
+        // Create the 3D marker with label
+        const marker = document.createElement('gmp-marker-3d') as any;
+        marker.id = id;
+        marker.setAttribute('position', `${lat},${lng},5`);
+        marker.setAttribute('altitude-mode', 'relative-to-ground');
+        marker.setAttribute('label', `${width.toFixed(1)}m`);
 
         markersRef.current.push(marker);
-      } catch (error) {
-        console.error('Error creating width label marker:', error);
-      }
+        map3d.appendChild(marker);
+      });
     });
 
     // Cleanup function
     return () => {
-      markersRef.current.forEach(marker => {
-        if (marker.map) {
-          marker.map = null;
+      mounted = false;
+      markersRef.current.forEach(element => {
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
         }
       });
       markersRef.current = [];
     };
-  }, [map, markersLibrary, features, visible]);
+  }, [maps3dLibrary, features, visible]);
 
-  // This component doesn't render anything to the React tree
   return null;
 }
