@@ -573,6 +573,31 @@ export async function POST(req: Request) {
 
             const data = await response.json();
 
+            // Add styling properties to GeoJSON features for proper rendering
+            if (data.parking_spots?.features) {
+              data.parking_spots.features = data.parking_spots.features.map((feature: any) => ({
+                ...feature,
+                properties: {
+                  ...feature.properties,
+                  type: 'parking',
+                  color: '#00F0FF',
+                  fill_opacity: 0.9,
+                  stroke_width: 2
+                }
+              }));
+            }
+
+            if (data.remaining_roadway_widths?.features) {
+              data.remaining_roadway_widths.features = data.remaining_roadway_widths.features.map((feature: any) => ({
+                ...feature,
+                properties: {
+                  ...feature.properties,
+                  color: '#FFA500',
+                  stroke_width: 4
+                }
+              }));
+            }
+
             // Save GeoJSON files to public/data/zürich/
             const fs = await import('fs/promises');
             const path = await import('path');
