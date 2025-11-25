@@ -52,15 +52,15 @@ function extractNetworkStats(content: string | undefined) {
 }
 
 const SUGGESTED_COMMANDS = [
-  { icon: MapPin, text: "Transform entire network with superblocks", level: "Macro", levelColor: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
-  { icon: Activity, text: "Create a cycling corridor", level: "Meso", levelColor: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
-  { icon: Zap, text: "Add EV charging infrastructure", level: "Micro", levelColor: "bg-green-500/20 text-green-400 border-green-500/30" },
+  { icon: MapPin, text: "Design parking with 2.5m spots", level: "Design", levelColor: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+  { icon: Activity, text: "Increase dooring margin to 1.0 meter", level: "Safety", levelColor: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
+  { icon: Zap, text: "Show parking with 3.0m width", level: "Compare", levelColor: "bg-green-500/20 text-green-400 border-green-500/30" },
 ];
 
 const EXPLORATION_COMMANDS = [
-  { icon: MapPin, text: "Where did you make changes?", level: "Explore", levelColor: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-  { icon: Layers, text: "Show me the transformed areas", level: "Navigate", levelColor: "bg-green-500/20 text-green-400 border-green-500/30" },
-  { icon: Activity, text: "What's different from before?", level: "Analysis", levelColor: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
+  { icon: MapPin, text: "How many parking spots are there?", level: "Info", levelColor: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
+  { icon: Layers, text: "What's the remaining roadway width?", level: "Measure", levelColor: "bg-green-500/20 text-green-400 border-green-500/30" },
+  { icon: Activity, text: "Try with larger parking spots", level: "Explore", levelColor: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
 ];
 
 interface ChatInterfaceProps {
@@ -137,7 +137,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
           parts: [
             {
               type: 'text',
-              text: '👋 I\'m **N!**, goNEON\'s AI agent. I help you complete urban planning tasks in **weeks instead of years**.\n\nI work across three levels:\n\n- **Macro**: City-wide mobility concepts\n- **Meso**: Corridor studies and route planning\n- **Micro**: Street space details (parking, charging stations)\n\nTry the suggestions below or ask me anything!',
+              text: '👋 I\'m **N!**, goNEON\'s AI agent for parking design.\n\nI help you design on-street parking in **minutes instead of weeks**.\n\n🚗 **What I can do**:\n- Adjust parking spot widths (2.0m - 4.0m)\n- Modify safety margins for car doors (0.5m - 2.0m)\n- Visualize remaining roadway space\n\nCurrently showing **Central Zürich** with 527 parking spots. Try the suggestions below!',
             }
           ],
         }
@@ -250,7 +250,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
               <ConversationEmptyState
                 icon={<MessageSquare className="size-12" />}
                 title="Welcome to N!"
-                description="Complete urban planning tasks in weeks instead of years. Try Macro, Meso, or Micro level prompts below."
+                description="Design on-street parking in minutes instead of weeks. Try the parking design prompts below."
               />
             ) : (
               <>
@@ -341,7 +341,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
         {/* Exploration Suggestions - Show for messages 1-2 */}
         {promptCount >= 1 && promptCount < 3 && (!betaBookingEnabled || promptCount < promptLimit) && (
           <div className="flex-shrink-0 border-t border-white/10 p-6">
-            <p className="text-sm text-gray-400 mb-3">Explore your transformation:</p>
+            <p className="text-sm text-gray-400 mb-3">Explore your parking design:</p>
             <div className="flex overflow-x-auto scrollbar-hide gap-2 snap-x snap-mandatory pb-2 -mx-2 px-2">
               {EXPLORATION_COMMANDS.map((cmd, index) => (
                 <Suggestion
@@ -442,7 +442,7 @@ export function ChatInterface({ onMapChange, onCameraUpdate }: ChatInterfaceProp
                 <PromptInputTextarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask me to create or modify a street network..."
+                  placeholder="Ask me to design or modify parking spots..."
                   className="text-base bg-black border-white/20 text-white placeholder:text-gray-400 focus:border-primary/50 focus:ring-primary/20 min-h-12"
                 />
               </PromptInputBody>
