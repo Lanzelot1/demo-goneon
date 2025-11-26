@@ -14,7 +14,7 @@ export interface MapState {
 export default function Home() {
   const [mapState, setMapState] = useState<MapState>({
     baseNetwork: "zürich/curbs",
-    overlays: ["zürich/parking_spots", "zürich/remaining_roadway_width"],
+    overlays: ["zürich/parking_spots", "zürich/safety_margins", "zürich/remaining_roadway_width"],
     timestamp: Date.now()
   });
   const [overlayData, setOverlayData] = useState<any>(null);

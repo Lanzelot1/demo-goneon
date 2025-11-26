@@ -535,8 +535,12 @@ export async function POST(req: Request) {
             .describe('Width of parking spots in meters (default: 2.0m)'),
           dooring_margin: z.number().optional()
             .describe('Safety margin for car door opening in meters (default: 1.5m)'),
+          remaining_roadway_width_min: z.number().min(1.0).max(6.0).optional()
+            .describe('Minimum required remaining roadway width in meters (1.0-6.0m). Parking spots with less remaining width will be marked as invalid and shown in red.'),
+          remaining_roadway_width_max: z.number().min(1.0).max(6.0).optional()
+            .describe('Maximum allowed remaining roadway width in meters (1.0-6.0m). Parking spots with more remaining width will be marked as invalid and shown in red.'),
         }),
-        execute: async ({ parking_spot_width, dooring_margin }) => {
+        execute: async ({ parking_spot_width, dooring_margin, remaining_roadway_width_min, remaining_roadway_width_max }) => {
           try {
             // Build rules array for backend API
             const rules: any[] = [];
@@ -561,12 +565,22 @@ export async function POST(req: Request) {
 
             // Call backend API
             const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const requestBody: any = { rules };
+
+            // Add remaining roadway width constraints if provided
+            if (remaining_roadway_width_min !== undefined) {
+              requestBody.remaining_roadway_width_min = remaining_roadway_width_min;
+            }
+            if (remaining_roadway_width_max !== undefined) {
+              requestBody.remaining_roadway_width_max = remaining_roadway_width_max;
+            }
+
             const response = await fetch(`${backendUrl}/design`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ rules }),
+              body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
@@ -627,7 +641,7 @@ export async function POST(req: Request) {
               },
               mapState: {
                 baseNetwork: 'zürich/curbs',
-                overlays: ['zürich/parking_spots', 'zürich/remaining_roadway_width'],
+                overlays: ['zürich/parking_spots', 'zürich/safety_margins', 'zürich/remaining_roadway_width'],
                 timestamp: Date.now(),
               },
               message: `Parking design updated: ${parkingSpotsCount} spots with ${parking_spot_width || 2.0}m width and ${dooring_margin || 1.5}m safety margin.`,
@@ -711,11 +725,16 @@ The loaded parking data contains:
 You have access to the parking design tool:
 - 'design_parking' - Design parking spots with custom dimensions for Zürich (MICRO level):
   * Recalculates parking geometries using the goNEON backend calculator
-  * Parameters: parking_spot_width (2.0-4.0m, default 2.0m), dooring_margin (0.5-2.0m, default 1.5m)
+  * Parameters:
+    - parking_spot_width (default 2.0m): Width of parking spots in meters
+    - dooring_margin (default 1.5m): Safety margin for car door opening in meters
+    - remaining_roadway_width_min (optional, 1.0-6.0m): Minimum required remaining roadway width - spots below this will show as RED (invalid)
+    - remaining_roadway_width_max (optional, 1.0-6.0m): Maximum allowed remaining roadway width - spots above this will show as RED (invalid)
   * Updates parking spots, safety margins, and remaining roadway width visualizations
-  * Use this when users want to adjust parking spot sizes or safety margins in Zürich
-  * Example: "make parking spots 2.5 meters wide" or "increase dooring margin to 1.0 meter"
+  * Use this when users want to adjust parking spot sizes, safety margins, or validate remaining street width
+  * Example: "make parking spots 2.5 meters wide" or "show me spots with less than 3 meters remaining width" or "filter for spots with remaining width between 2.5m and 4m"
   * Requires the goNEON backend server running on http://localhost:8000
+  * 🎨 Visual Feedback: Valid spots (meeting all constraints) show in GREEN, invalid spots (violating constraints) show in RED
 
 **Important Tool Execution**:
 

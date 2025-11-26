@@ -43,6 +43,7 @@ const OBJECT_TYPE_COLORS: Record<string, string> = {
   'parking_spot': '#00F0FF',
   'curb': '#FFFFFF',
   'roadway': '#FFA500',
+  'safety_margins': '#FFFF00',  // Yellow for safety margins
 };
 
 export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
@@ -127,8 +128,8 @@ export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
           // Color-code parking spots based on rule enforcement
           let strokeColor = lane.properties.stroke_color || color;
           if (lane.properties._rule_enforcement_result !== undefined) {
-            // Blue for compliant spots, red for non-compliant
-            strokeColor = lane.properties._rule_enforcement_result ? '#0000FF' : '#FF0000';
+            // Green for valid spots, red for invalid
+            strokeColor = lane.properties._rule_enforcement_result ? '#10B981' : '#FF0000';
           }
 
           const polygon = document.createElement('gmp-polygon-3d') as any;
