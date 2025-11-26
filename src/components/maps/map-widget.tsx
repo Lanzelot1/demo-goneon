@@ -117,7 +117,7 @@ export function MapWidget({ mapState, overlayData, onCameraReady }: MapWidgetPro
         <div className="flex items-center justify-center">
           <div className="flex items-center gap-4">
             <Map className="h-8 w-8 text-secondary" />
-            <h2 className="text-2xl font-bold text-white">3D Street Network</h2>
+            <h2 className="text-2xl font-bold text-white">MAP</h2>
           </div>
         </div>
       </div>
