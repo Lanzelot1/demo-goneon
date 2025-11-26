@@ -72,7 +72,7 @@ export function WidthLabels({ features, visible = true }: WidthLabelsProps) {
         // Create the 3D marker with label
         const marker = document.createElement('gmp-marker-3d') as any;
         marker.id = id;
-        marker.setAttribute('position', `${lat},${lng},5`);
+        marker.setAttribute('position', `${lat},${lng},0`);
         marker.setAttribute('altitude-mode', 'relative-to-ground');
         marker.setAttribute('label', `${width.toFixed(1)}m`);
 
