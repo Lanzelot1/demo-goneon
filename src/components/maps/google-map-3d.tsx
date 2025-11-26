@@ -243,7 +243,7 @@ export function GoogleMap3D({
           />
 
           {/* Base network */}
-          <NetworkOverlay lanes={lanes} visible={showNetwork} />
+          <NetworkOverlay lanes={lanes} visible={false} />
 
           {/* Overlay layers */}
           {Object.entries(overlayLayers).map(([layerName, features]) => (
