@@ -534,9 +534,9 @@ export async function POST(req: Request) {
           parking_spot_width: z.number().optional()
             .describe('Width of parking spots in meters (default: 2.0m)'),
           dooring_margin: z.number().optional()
-            .describe('Safety margin for car door opening in meters (default: 1.5m)'),
+            .describe('Safety margin for car door opening in meters (default: 0.5m)'),
           remaining_roadway_width_min: z.number().min(1.0).max(6.0).optional()
-            .describe('Minimum required remaining roadway width in meters (1.0-6.0m). Parking spots with less remaining width will be marked as invalid and shown in red.'),
+            .describe('Minimum required remaining roadway width in meters (1.0-6.0m, default: 3.0m). Parking spots with less remaining width will be marked as invalid and shown in red.'),
           remaining_roadway_width_max: z.number().min(1.0).max(6.0).optional()
             .describe('Maximum allowed remaining roadway width in meters (1.0-6.0m). Parking spots with more remaining width will be marked as invalid and shown in red.'),
         }),
@@ -567,10 +567,10 @@ export async function POST(req: Request) {
             const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
             const requestBody: any = { rules };
 
-            // Add remaining roadway width constraints if provided
-            if (remaining_roadway_width_min !== undefined) {
-              requestBody.remaining_roadway_width_min = remaining_roadway_width_min;
-            }
+            // Add remaining roadway width constraints (with default for min)
+            const minWidth = remaining_roadway_width_min ?? 3.0;
+            requestBody.remaining_roadway_width_min = minWidth;
+
             if (remaining_roadway_width_max !== undefined) {
               requestBody.remaining_roadway_width_max = remaining_roadway_width_max;
             }
@@ -633,7 +633,7 @@ export async function POST(req: Request) {
               status: 'success',
               action: 'design_parking',
               parking_spot_width: parking_spot_width || 2.0,
-              dooring_margin: dooring_margin || 1.5,
+              dooring_margin: dooring_margin || 0.5,
               sessionId: sessionId,  // Frontend uses this to fetch GeoJSON
               features_updated: {
                 parking_spots: parkingSpotsCount,
@@ -644,7 +644,7 @@ export async function POST(req: Request) {
                 overlays: ['zürich/parking_spots', 'zürich/safety_margins', 'zürich/remaining_roadway_width'],
                 timestamp: Date.now(),
               },
-              message: `Parking design updated: ${parkingSpotsCount} spots with ${parking_spot_width || 2.0}m width and ${dooring_margin || 1.5}m safety margin.`,
+              message: `Parking design updated: ${parkingSpotsCount} spots with ${parking_spot_width || 2.0}m width and ${dooring_margin || 0.5}m safety margin.`,
             };
           } catch (error) {
             console.error('Design parking error:', error);
@@ -727,8 +727,8 @@ You have access to the parking design tool:
   * Recalculates parking geometries using the goNEON backend calculator
   * Parameters:
     - parking_spot_width (default 2.0m): Width of parking spots in meters
-    - dooring_margin (default 1.5m): Safety margin for car door opening in meters
-    - remaining_roadway_width_min (optional, 1.0-6.0m): Minimum required remaining roadway width - spots below this will show as RED (invalid)
+    - dooring_margin (default 0.5m): Safety margin for car door opening in meters
+    - remaining_roadway_width_min (default 3.0m, range 1.0-6.0m): Minimum required remaining roadway width - spots below this will show as RED (invalid)
     - remaining_roadway_width_max (optional, 1.0-6.0m): Maximum allowed remaining roadway width - spots above this will show as RED (invalid)
   * Updates parking spots, safety margins, and remaining roadway width visualizations
   * Use this when users want to adjust parking spot sizes, safety margins, or validate remaining street width
