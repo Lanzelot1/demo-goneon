@@ -531,10 +531,10 @@ export async function POST(req: Request) {
       design_parking: {
         description: 'Design parking spots for Zürich with custom widths and safety margins using the goNEON backend calculator. This MICRO-level tool recalculates parking geometries based on design rules.',
         inputSchema: z.object({
-          parking_spot_width: z.number().min(2.0).max(4.0).optional()
-            .describe('Width of parking spots in meters (2.0-4.0m, default: 2.0m)'),
-          dooring_margin: z.number().min(0.5).max(2.0).optional()
-            .describe('Safety margin for car door opening in meters (0.5-2.0m, default: 1.5m)'),
+          parking_spot_width: z.number().optional()
+            .describe('Width of parking spots in meters (default: 2.0m)'),
+          dooring_margin: z.number().optional()
+            .describe('Safety margin for car door opening in meters (default: 1.5m)'),
         }),
         execute: async ({ parking_spot_width, dooring_margin }) => {
           try {
