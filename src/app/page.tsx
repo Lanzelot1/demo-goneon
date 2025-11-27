@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Header } from "@/components/layout/header";
 import { ChatInterface } from "@/components/chat/chat-interface";
 import { MapWidget } from "@/components/maps/map-widget";
@@ -19,6 +19,21 @@ export default function Home() {
   });
   const [overlayData, setOverlayData] = useState<any>(null);
   const updateCameraRef = useRef<((props: any) => void) | null>(null);
+
+  // Fetch initial map data from backend with defaults
+  useEffect(() => {
+    fetch('/api/init-map')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          console.log('Initial map data loaded from backend');
+          setOverlayData(data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch initial map data:', err);
+      });
+  }, []);
 
   const handleMapChange = (mapName: string | MapState) => {
     // Support both legacy string format and new MapState format
