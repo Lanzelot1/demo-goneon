@@ -589,6 +589,10 @@ export async function POST(req: Request) {
 
             const data = await response.json();
 
+            // Debug: Log backend response to check _rule_enforcement_result
+            console.log('Backend response sample parking spot:',
+              data.parking_spots?.features?.[0]?.properties);
+
             // Add styling properties to GeoJSON features for proper rendering
             if (data.parking_spots?.features) {
               data.parking_spots.features = data.parking_spots.features.map((feature: any) => ({
@@ -608,8 +612,20 @@ export async function POST(req: Request) {
                 ...feature,
                 properties: {
                   ...feature.properties,
-                  color: '#FFA500',
+                  color: '#FFFFFF',
                   stroke_width: 4
+                }
+              }));
+            }
+
+            if (data.safety_margins?.features) {
+              data.safety_margins.features = data.safety_margins.features.map((feature: any) => ({
+                ...feature,
+                properties: {
+                  ...feature.properties,
+                  type: 'safety_margin',
+                  color: '#FFFFFF',
+                  stroke_width: 3
                 }
               }));
             }
