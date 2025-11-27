@@ -42,8 +42,8 @@ const LANE_COLORS: Record<string, string> = {
 const OBJECT_TYPE_COLORS: Record<string, string> = {
   'parking_spot': '#00F0FF',
   'curb': '#FFFFFF',
-  'roadway': '#FFA500',
-  'safety_margins': '#FFFF00',  // Yellow for safety margins
+  'roadway': '#FFFFFF',
+  'safety_margins': '#FFFFFF',
 };
 
 export function NetworkOverlay({ lanes, visible = true }: NetworkOverlayProps) {
